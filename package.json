@@ -23,7 +23,12 @@
     "postgraphile": "5.0.0-beta.15"
   },
   "devDependencies": {
+    "@dataplan/json": "0.0.1-beta.9",
+    "@dataplan/pg": "0.0.1-beta.11",
     "@graphile-contrib/pg-simplify-inflector": "^6.1.0",
+    "@graphile/simplify-inflection": "8.0.0-beta.3",
+    "@types/pg": "^8.10.7",
+    "@typescript-eslint/parser": "^6.9.0",
     "eslint": "^8.52.0",
     "eslint-config-airbnb-base": "^15.0.0",
     "eslint-config-prettier": "^9.0.0",
@@ -34,7 +39,8 @@
     "jest-junit": "^16.0.0",
     "pg": "^8.5.1",
     "postgraphile": "5.0.0-beta.15",
-    "prettier": "^3.0.3"
+    "prettier": "^3.0.3",
+    "typescript": "^5.2.2"
   },
   "jest": {
     "testRegex": "__tests__/.*\\.test\\.js$",
@@ -45,62 +51,5 @@
   },
   "files": [
     "src"
-  ],
-  "prettier": {
-    "trailingComma": "all",
-    "semi": true,
-    "singleQuote": true,
-    "arrowParens": "always"
-  },
-  "eslintConfig": {
-    "extends": [
-      "airbnb-base",
-      "prettier"
-    ],
-    "plugins": [
-      "prettier"
-    ],
-    "env": {
-      "jest": true
-    },
-    "globals": {
-      "expect": false,
-      "jasmine": false
-    },
-    "rules": {
-      "prettier/prettier": "error",
-      "import/no-unresolved": 0,
-      "import/no-extraneous-dependencies": 0,
-      "import/extensions": 0,
-      "import/prefer-default-export": 0,
-      "prefer-object-spread": 0,
-      "max-len": 0,
-      "symbol-description": 0,
-      "no-nested-ternary": 0,
-      "no-alert": 0,
-      "no-console": 0,
-      "no-plusplus": 0,
-      "no-restricted-globals": 0,
-      "no-underscore-dangle": [
-        "error",
-        {
-          "allow": [
-            "_fields"
-          ]
-        }
-      ],
-      "no-return-assign": [
-        "error",
-        "except-parens"
-      ],
-      "class-methods-use-this": 0,
-      "prefer-destructuring": [
-        "error",
-        {
-          "object": true,
-          "array": false
-        }
-      ]
-    }
-  }
+  ]
 }
