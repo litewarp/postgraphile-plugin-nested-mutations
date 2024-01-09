@@ -1,26 +1,37 @@
 {
-  "name": "postgraphile-plugin-nested-mutations",
-  "version": "1.2.0",
-  "description": "Nested mutations plugin for PostGraphile",
-  "main": "index.js",
-  "repository": {
-    "url": "git+https://github.com/mlipscombe/postgraphile-plugin-nested-mutations.git",
-    "type": "git"
-  },
-  "author": "Mark Lipscombe",
-  "license": "MIT",
+  "name": "@litewarp/grafast-nested-mutations-plugin",
+  "version": "0.0.1",
+  "description": "Nested mutations plugin for PostGraphile v5 (aka Grafast)",
   "bugs": {
-    "url": "https://github.com/mlipscombe/postgraphile-plugin-nested-mutations/issues"
+    "url": "https://github.com/litewarp/postgraphile-plugin-nested-mutations/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/litewarp/postgraphile-plugin-nested-mutations.git"
+  },
+  "license": "MIT",
+  "author": "Nick Sethi",
+  "type": "module",
+  "exports": {
+    "import": "./dist/index.js",
+    "require": "./dist/index.cjs",
+    "types": "./dist/index.d.ts"
   },
   "scripts": {
-    "test": "scripts/test jest -i",
-    "lint": "eslint index.js src/**/*.js"
+    "build": "tsup",
+    "lint": "eslint index.js src/**/*.js",
+    "test": "scripts/test jest -i"
+  },
+  "prettier": "@vercel/style-guide/prettier",
+  "jest": {
+    "collectCoverageFrom": [
+      "src/*.js",
+      "index.js"
+    ],
+    "testRegex": "__tests__/.*\\.test\\.js$"
   },
   "dependencies": {
     "graphile-build": "5.0.0-beta.10"
-  },
-  "peerDependencies": {
-    "postgraphile": "5.0.0-beta.15"
   },
   "devDependencies": {
     "@dataplan/json": "0.0.1-beta.9",
@@ -29,27 +40,19 @@
     "@graphile/simplify-inflection": "8.0.0-beta.3",
     "@types/pg": "^8.10.7",
     "@typescript-eslint/parser": "^6.9.0",
-    "eslint": "^8.52.0",
-    "eslint-config-airbnb-base": "^15.0.0",
-    "eslint-config-prettier": "^9.0.0",
-    "eslint-plugin-import": "^2.22.1",
-    "eslint-plugin-prettier": "^5.0.1",
+    "@vercel/style-guide": "^5.1.0",
+    "eslint": "^8.56.0",
+    "eslint-config-prettier": "^9.1.0",
     "graphql": "^16.8.1",
     "jest": "^29.7.0",
     "jest-junit": "^16.0.0",
     "pg": "^8.5.1",
     "postgraphile": "5.0.0-beta.15",
-    "prettier": "^3.0.3",
+    "prettier": "^3.1.1",
+    "tsup": "^8.0.1",
     "typescript": "^5.2.2"
   },
-  "jest": {
-    "testRegex": "__tests__/.*\\.test\\.js$",
-    "collectCoverageFrom": [
-      "src/*.js",
-      "index.js"
-    ]
-  },
-  "files": [
-    "src"
-  ]
+  "peerDependencies": {
+    "postgraphile": "5.0.0-beta.15"
+  }
 }

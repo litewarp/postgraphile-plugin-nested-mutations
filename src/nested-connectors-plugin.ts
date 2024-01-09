@@ -6,7 +6,7 @@ declare global {
     interface Inflection {
       nestedConnectByNodeIdField(
         this: Inflection,
-        resource: PgResource
+        resource: PgResource,
       ): string;
     }
   }
@@ -26,9 +26,3 @@ const config: GraphileConfig.Plugin = {
   gather: {},
   schema: {},
 };
-// nestedConnectByNodeIdField(options, resource) {
-//         const { constraint } = options;
-//         if (!this) throw new Error("No inflector available")
-//         const fieldName = `connect_by_${constraint.keyAttributes.map((k) => this.column(k)).join("_and_")}`
-//         return this.camelCase(fieldName)
-//
