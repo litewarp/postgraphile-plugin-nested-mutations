@@ -1,0 +1,28 @@
+mutation {
+  createParent(
+    input: {
+      parent: {
+        name: "test f1"
+        childrenUsingId: {
+          create: [
+            { name: "child 1 of test f1" }
+            { name: "child 2 of test f1" }
+          ]
+        }
+      }
+    }
+  ) {
+    parent {
+      id
+      name
+      childrenByDadParentId {
+        nodes {
+          id
+          momParentId
+          dadParentId
+          name
+        }
+      }
+    }
+  }
+}

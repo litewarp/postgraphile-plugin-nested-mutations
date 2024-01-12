@@ -70,11 +70,13 @@ module.exports = function PostGraphileNestedTypesPlugin(
 
         const multipleFKs = constraints.length > 1;
 
-        const isUnique = !!foreignTable.constraints.find(
-          (c) =>
-            (c.type === 'p' || c.type === 'u') &&
-            c.keyAttributeNums.length === keys.length &&
-            c.keyAttributeNums.every((n, i) => keys[i].num === n),
+        const isUnique = Boolean(
+          foreignTable.constraints.find(
+            (c) =>
+              (c.type === 'p' || c.type === 'u') &&
+              c.keyAttributeNums.length === keys.length &&
+              c.keyAttributeNums.every((n, i) => keys[i].num === n),
+          ),
         );
 
         const computedReverseMutationName = inflection.camelCase(
@@ -195,7 +197,7 @@ module.exports = function PostGraphileNestedTypesPlugin(
         .filter((con) => con.type === 'u' || con.type === 'p')
         .filter((con) => !con.keyAttributes.some((key) => omit(key)));
 
-      const connectable = !!foreignUniqueConstraints.length;
+      const connectable = Boolean(foreignUniqueConstraints.length);
       const creatable =
         !omit(foreignTable, 'create') &&
         !omit(constraint, 'create') &&
@@ -218,11 +220,13 @@ module.exports = function PostGraphileNestedTypesPlugin(
       }
 
       const keys = constraint.keyAttributes;
-      const isUnique = !!foreignTable.constraints.find(
-        (c) =>
-          (c.type === 'p' || c.type === 'u') &&
-          c.keyAttributeNums.length === keys.length &&
-          c.keyAttributeNums.every((n, i) => keys[i].num === n),
+      const isUnique = Boolean(
+        foreignTable.constraints.find(
+          (c) =>
+            (c.type === 'p' || c.type === 'u') &&
+            c.keyAttributeNums.length === keys.length &&
+            c.keyAttributeNums.every((n, i) => keys[i].num === n),
+        ),
       );
 
       const fieldName = pgNestedFieldName({
@@ -271,8 +275,8 @@ module.exports = function PostGraphileNestedTypesPlugin(
                   type: isForward
                     ? field
                     : isUnique
-                    ? field
-                    : new GraphQLList(new GraphQLNonNull(field)),
+                      ? field
+                      : new GraphQLList(new GraphQLNonNull(field)),
                 };
               },
             );
@@ -284,8 +288,8 @@ module.exports = function PostGraphileNestedTypesPlugin(
                     type: isForward
                       ? field
                       : isUnique
-                      ? field
-                      : new GraphQLList(new GraphQLNonNull(field)),
+                        ? field
+                        : new GraphQLList(new GraphQLNonNull(field)),
                   };
                 },
               );
@@ -298,8 +302,8 @@ module.exports = function PostGraphileNestedTypesPlugin(
                     type: isForward
                       ? field
                       : isUnique
-                      ? field
-                      : new GraphQLList(new GraphQLNonNull(field)),
+                        ? field
+                        : new GraphQLList(new GraphQLNonNull(field)),
                   };
                 },
               );
@@ -313,7 +317,7 @@ module.exports = function PostGraphileNestedTypesPlugin(
                   fields: () => {
                     const inputFields = gqlForeignTableType._fields;
                     return Object.keys(inputFields)
-                      .map((k) => Object.assign({}, { [k]: inputFields[k] }))
+                      .map((k) => ({ [k]: inputFields[k] }))
                       .reduce((res, o) => Object.assign(res, o), {});
                   },
                 },

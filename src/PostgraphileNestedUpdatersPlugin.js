@@ -79,9 +79,8 @@ module.exports = function PostGraphileNestedUpdatersPlugin(builder) {
         if (isNodeIdUpdater) {
           const nodeId = input[nodeIdFieldName];
           const primaryKeys = foreignTable.primaryKeyConstraint.keyAttributes;
-          const { Type, identifiers } = build.getTypeAndIdentifiersFromNodeId(
-            nodeId,
-          );
+          const { Type, identifiers } =
+            build.getTypeAndIdentifiersFromNodeId(nodeId);
           const ForeignTableType = pgGetGqlTypeByTypeIdAndModifier(
             foreignTable.type.id,
             null,
@@ -109,10 +108,10 @@ module.exports = function PostGraphileNestedUpdatersPlugin(builder) {
             foreignPrimaryKeys.map(
               (k) => sql.fragment`
                 ${sql.identifier(k.name)} = ${gql2pg(
-                input[inflection.column(k)],
-                k.type,
-                k.typeModifier,
-              )}
+                  input[inflection.column(k)],
+                  k.type,
+                  k.typeModifier,
+                )}
               `,
             ),
             ') and (',
@@ -214,9 +213,8 @@ module.exports = function PostGraphileNestedUpdatersPlugin(builder) {
               foreignTable.type.id,
               null,
             );
-            const foreignTableFieldName = inflection.tableFieldName(
-              foreignTable,
-            );
+            const foreignTableFieldName =
+              inflection.tableFieldName(foreignTable);
             const patchFieldName = inflection.patchField(foreignTableFieldName);
             const ForeignTablePatch = getTypeByName(
               inflection.patchType(ForeignTableType.name),
@@ -240,9 +238,7 @@ module.exports = function PostGraphileNestedUpdatersPlugin(builder) {
                   );
                   return Object.keys(ForeignTablePatch._fields)
                     .filter((key) => !omittedFields.includes(key))
-                    .map((k) =>
-                      Object.assign({}, { [k]: ForeignTablePatch._fields[k] }),
-                    )
+                    .map((k) => ({ [k]: ForeignTablePatch._fields[k] }))
                     .reduce((res, o) => Object.assign(res, o), {});
                 },
               },
@@ -288,34 +284,25 @@ module.exports = function PostGraphileNestedUpdatersPlugin(builder) {
                         keyConstraint,
                       }),
                       description: `The fields on \`${foreignTableFieldName}\` to look up the row to update.`,
-                      fields: () =>
-                        Object.assign(
-                          {},
-                          {
-                            [patchFieldName]: {
-                              description: `An object where the defined keys will be set on the \`${foreignTableFieldName}\` being updated.`,
-                              type: new GraphQLNonNull(patchType),
-                            },
-                          },
-                          keys
-                            .map((k) =>
-                              Object.assign(
-                                {},
-                                {
-                                  [inflection.column(k)]: {
-                                    description: k.description,
-                                    type: new GraphQLNonNull(
-                                      pgGetGqlInputTypeByTypeIdAndModifier(
-                                        k.typeId,
-                                        k.typeModifier,
-                                      ),
-                                    ),
-                                  },
-                                },
+                      fields: () => ({
+                        [patchFieldName]: {
+                          description: `An object where the defined keys will be set on the \`${foreignTableFieldName}\` being updated.`,
+                          type: new GraphQLNonNull(patchType),
+                        },
+                        ...keys
+                          .map((k) => ({
+                            [inflection.column(k)]: {
+                              description: k.description,
+                              type: new GraphQLNonNull(
+                                pgGetGqlInputTypeByTypeIdAndModifier(
+                                  k.typeId,
+                                  k.typeModifier,
+                                ),
                               ),
-                            )
-                            .reduce((res, o) => Object.assign(res, o), {}),
-                        ),
+                            },
+                          }))
+                          .reduce((res, o) => Object.assign(res, o), {}),
+                      }),
                     },
                     {
                       isNestedMutationInputType: true,

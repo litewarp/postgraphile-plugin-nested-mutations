@@ -1,0 +1,9 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`a query=test.graphql 1`] = `
+{
+  "errors": [
+    [GraphQLError: Field "childrenUsingId" is not defined by type "ParentInput".],
+  ],
+}
+`;

@@ -1,6 +1,5 @@
-/* eslint-disable no-param-reassign */
+const { readFile } = require('node:fs');
 const pg = require('pg');
-const { readFile } = require('fs');
 const pgConnectionString = require('pg-connection-string');
 const { createPostGraphileSchema } = require('postgraphile-core');
 
@@ -25,7 +24,7 @@ const withPgClient = async (url, fn) => {
   try {
     client = await pgPool.connect();
     await client.query('begin');
-    await client.query('set local timezone to \'+04:00\'');
+    await client.query("set local timezone to '+04:00'");
     const result = await fn(client);
     await client.query('rollback');
     return result;
@@ -40,17 +39,17 @@ const withPgClient = async (url, fn) => {
   }
 };
 
-const withDbFromUrl = async (url, fn) => withPgClient(url, async (client) => {
-  try {
-    await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE;');
-    return fn(client);
-  } finally {
-    await client.query('COMMIT;');
-  }
-});
+const withDbFromUrl = async (url, fn) =>
+  withPgClient(url, async (client) => {
+    try {
+      await client.query('BEGIN ISOLATION LEVEL SERIALIZABLE;');
+      return fn(client);
+    } finally {
+      await client.query('COMMIT;');
+    }
+  });
 
-
-const withRootDb = fn => withDbFromUrl(process.env.TEST_DATABASE_URL, fn);
+const withRootDb = (fn) => withDbFromUrl(process.env.TEST_DATABASE_URL, fn);
 
 let prepopulatedDBKeepalive;
 
@@ -101,7 +100,7 @@ withPrepopulatedDb.setup = async () => {
     try {
       prepopulatedDBKeepalive.vars = await populateDatabase(client);
     } catch (e) {
-      console.error('FAILED TO PREPOPULATE DB!', e.message); // eslint-disable-line no-console
+      console.error('FAILED TO PREPOPULATE DB!', e.message);
       throw e;
     }
     await client.query('SAVEPOINT pristine;');
@@ -117,35 +116,37 @@ withPrepopulatedDb.teardown = () => {
   prepopulatedDBKeepalive = null;
 };
 
-const withSchema = ({
-  setup,
-  test,
-  options = {},
-}) => () => withPgClient(async (client) => {
-  if (setup) {
-    if (typeof setup === 'function') {
-      await setup(client);
-    } else {
-      await client.query(setup);
-    }
-  }
+const withSchema =
+  ({ setup, test, options = {} }) =>
+  () =>
+    withPgClient(async (client) => {
+      if (setup) {
+        if (typeof setup === 'function') {
+          await setup(client);
+        } else {
+          await client.query(setup);
+        }
+      }
 
-  const schemaOptions = Object.assign(
-    {
-      appendPlugins: [require('../index.js')],
-      showErrorStack: true,
-    },
-    options,
-  );
+      const schemaOptions = {
+        appendPlugins: [require('../index.js')],
+        showErrorStack: true,
+        ...options,
+      };
 
-  const schema = await createPostGraphileSchema(client, ['p'], schemaOptions);
-  return test({
-    schema,
-    pgClient: client,
-  });
-});
+      const schema = await createPostGraphileSchema(
+        client,
+        ['p'],
+        schemaOptions,
+      );
+      return test({
+        schema,
+        pgClient: client,
+      });
+    });
 
-const loadQuery = fn => readFilePromise(`${__dirname}/fixtures/queries/${fn}`, 'utf8');
+const loadQuery = (fn) =>
+  readFilePromise(`${__dirname}/fixtures/queries/${fn}`, 'utf8');
 
 exports.withRootDb = withRootDb;
 exports.withPrepopulatedDb = withPrepopulatedDb;
