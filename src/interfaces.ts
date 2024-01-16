@@ -5,6 +5,8 @@ import type {
   PgCodecWithAttributes,
 } from '@dataplan/pg';
 import type {} from 'postgraphile';
+import type { GrafastInputFieldConfig } from 'grafast';
+import { GraphQLInputType } from 'graphql';
 
 // A generic table resource with attributes, uniques, relations, and no paramters
 export type PgTableResource = PgResource<
@@ -32,6 +34,7 @@ export interface PgNestedMutationRelationDetails {
   relationName: string;
   table: PgTableResource;
   relationship: PgTableRelationship;
+  typeName: string;
 }
 
 export interface PgNestedConnectorTypeObj {
@@ -41,15 +44,19 @@ export interface PgNestedConnectorTypeObj {
   typeName: string;
 }
 
+interface PgNestedTableConnectorField {
+  fieldName: string;
+  type: GraphQLInputType;
+  relationship: PgTableRelationship;
+}
+
 declare global {
   namespace GraphileBuild {
     interface Build {
-      pgNestedRelationships: Map<
-        PgTableResource,
-        PgNestedMutationRelationDetails[]
-      >;
+      pgNestedRelationships: PgNestedMutationRelationDetails[];
       pgNestedMutationConnectorTypes: PgNestedConnectorTypeObj[];
       pgNestedMutationTypes: Set<string>;
+      pgNestedConnectorFields: Record<string, PgNestedTableConnectorField>;
     }
     interface Inflection {
       nestedConnectByNodeIdInputType: PgNestedConnectorsInflectionFn;
@@ -58,6 +65,7 @@ declare global {
       nestedConnectByKeyAttributesFieldName: PgNestedConnectorsInflectionFn;
       nestedCreateInputType: PgNestedConnectorsInflectionFn;
       nestedConnectorFieldType: PgNestedConnectorsInflectionFn;
+      nestedConnectorFieldName: PgNestedConnectorsInflectionFn;
     }
 
     interface ScopeInputObject {

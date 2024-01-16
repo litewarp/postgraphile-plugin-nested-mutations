@@ -1,14 +1,20 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
+import type { SchemaResult } from 'graphile-build';
 import { makeSchema } from 'graphile-build';
 import { PostGraphileAmberPreset } from 'postgraphile/presets/amber';
 import { PgManyToManyPreset } from '@graphile-contrib/pg-many-to-many';
-import { hookArgs, grafastGraphql as graphql } from 'grafast';
-import { parse, printSchema } from 'graphql';
+import { hookArgs, execute } from 'grafast';
+import type { ExecutionArgs } from 'graphql';
+import { parse, validate } from 'graphql';
 import { PgSimplifyInflectionPreset } from '@graphile/simplify-inflection';
+import { PostGraphileRelayPreset } from 'postgraphile/presets/relay';
+import type { Pool } from 'pg';
+import { makeWithPgClientViaPgClientAlreadyInTransaction } from 'postgraphile/adaptors/pg';
+import { exportSchemaAsString } from 'graphile-export';
 import { NestedMutationPreset } from '../src';
-import { withPgClient } from './helpers';
+import { withPgClient, withPgPool } from './helpers';
 
 const readFixtureForSqlSchema = async (sqlSchema: string, fixture: string) =>
   readFile(
@@ -23,70 +29,36 @@ const readFixtureForSqlSchema = async (sqlSchema: string, fixture: string) =>
     'utf8',
   );
 
-async function queryResult(sqlSchema: string, fixture: string) {
-  return withPgClient({
-    cb: async (pgClient) => {
-      // reset schema
-      const setupSchema = await readFile(
-        path.resolve(__dirname, 'schemas', sqlSchema, 'schema.sql'),
-        'utf8',
-      );
-
-      await pgClient.query(setupSchema);
-
-      const data = await readFile(
-        path.resolve(__dirname, 'schemas', sqlSchema, 'data.sql'),
-        'utf8',
-      );
-
-      const res = await pgClient.query(data);
-
-      const { schema, resolvedPreset } = await makeSchema({
-        extends: [
-          PostGraphileAmberPreset,
-          PgSimplifyInflectionPreset,
-          PgManyToManyPreset,
-          NestedMutationPreset,
-        ],
-        pgServices: [
-          {
-            name: 'main',
-            adaptor: '@dataplan/pg/adaptors/pg',
-            withPgClientKey: 'withPgClient',
-            pgSettingsKey: 'pgSettings',
-            pgSettingsForIntrospection: {},
-            schemas: [sqlSchema],
-            adaptorSettings: {
-              poolClient: pgClient,
-            },
-          },
-        ],
-      });
-
-      await writeFile('./tmp/schema.graphql', printSchema(schema));
-
-      const query = await readFixtureForSqlSchema(sqlSchema, fixture);
-
-      const args = {
-        schema,
-        source: query,
-      };
-
-      await hookArgs(
-        {
-          schema,
-          document: parse(query),
+const createPostGraphileSchema = async (pgPool: Pool, sqlSchema: string) => {
+  const gs = await makeSchema({
+    extends: [
+      PostGraphileAmberPreset,
+      PgSimplifyInflectionPreset,
+      PgManyToManyPreset,
+      NestedMutationPreset,
+      PostGraphileRelayPreset,
+    ],
+    pgServices: [
+      {
+        name: 'main',
+        adaptor: '@dataplan/pg/adaptors/pg',
+        withPgClientKey: 'withPgClient',
+        pgSettingsKey: 'pgSettings',
+        pgSettingsForIntrospection: {},
+        schemas: [sqlSchema],
+        adaptorSettings: {
+          pool: pgPool,
         },
-        resolvedPreset,
-        {
-          /* optional details for your context callback(s) to use */
-        },
-      );
-
-      return graphql(args);
-    },
+      },
+    ],
   });
-}
+  await writeFile(
+    './tmp/schema.graphql',
+    (await exportSchemaAsString(gs.schema, { mode: 'graphql-js' })).code,
+    'utf8',
+  );
+  return gs;
+};
 
 const getFixturesForSqlSchema = (sqlSchema: string) =>
   existsSync(
@@ -102,13 +74,64 @@ const getSqlSchemas = () =>
 
 const sqlSchemas = getSqlSchemas();
 
+let gqlSchema: SchemaResult;
+
+beforeAll(async () => {
+  // Ensure process.env.TEST_DATABASE_URL is set
+  if (!process.env.TEST_DATABASE_URL) {
+    console.error(
+      'ERROR: No test database configured; aborting. To resolve this, ensure environmental variable TEST_DATABASE_URL is set.',
+    );
+    process.exit(1);
+  }
+});
+
 describe.each(sqlSchemas)('%s', (sqlSchema) => {
+  beforeEach(async () => {
+    gqlSchema = await withPgPool(async (pool) =>
+      createPostGraphileSchema(pool, sqlSchema),
+    );
+  });
   const fixtures = getFixturesForSqlSchema(sqlSchema);
   if (fixtures.length > 0) {
     test.each(fixtures)('query=%s', async (fixture) => {
-      const result = await queryResult(sqlSchema, fixture);
+      const { schema, resolvedPreset } = gqlSchema;
+      const query = await readFixtureForSqlSchema(sqlSchema, fixture);
+      const document = parse(query);
+      const errors = validate(schema, document);
+      if (errors.length > 0) {
+        throw new Error(
+          `GraphQL validation errors:\n${errors
+            .map((e) => e.message)
+            .join('\n')}`,
+        );
+      }
+      const args: ExecutionArgs = {
+        schema,
+        document,
+      };
+      await hookArgs(args, resolvedPreset, {});
+      const result = await withPgClient(async (pgClient) => {
+        // We must override the context because we didn't use a pool above and so
+        // we need to add our own client
+        // NOTE: the withPgClient needed on context is **VERY DIFFERENT** to our
+        // withPgClient test helper. We should rename our test helper ;)
+
+        const contextWithPgClient =
+          makeWithPgClientViaPgClientAlreadyInTransaction(pgClient, false);
+
+        try {
+          args.contextValue = {
+            pgSettings: (args.contextValue as any).pgSettings,
+            withPgClient: contextWithPgClient,
+          };
+          return (await execute(args)) as any;
+        } finally {
+          contextWithPgClient.release?.();
+        }
+      });
       if (result.errors) {
-        console.log(result.errors.map((e) => e.originalError ?? e));
+        console.log(result.errors.map((e: any) => e.originalError ?? e));
       }
       expect(result).toMatchSnapshot();
     });

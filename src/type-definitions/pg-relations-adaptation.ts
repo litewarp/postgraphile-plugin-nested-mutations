@@ -1,11 +1,11 @@
-import type { PgCodecWithAttributes, PgResource } from '@dataplan/pg';
-import type { GraphQLInputFieldConfigMap, GraphQLInputType } from 'graphql';
+import { type PgCodecWithAttributes, type PgResource } from '@dataplan/pg';
+import type {
+  GraphQLInputFieldConfigMap,
+  GraphQLInputObjectType,
+  GraphQLInputType,
+} from 'graphql';
 import { gatherRelationshipData } from '../gather-relationship-data';
 import type { PgTableResource } from '../interfaces';
-
-interface State {}
-
-const EMPTY_OBJECT = Object.freeze({});
 
 function isPgTableResource(r: PgResource): r is PgTableResource {
   return Boolean(r.codec.attributes) && !r.parameters;
@@ -84,12 +84,42 @@ export const PgNestedMutationsSchemaPlugin: GraphileConfig.Plugin = {
             .join('_'),
         );
       },
+      nestedConnectorFieldName(options, details) {
+        const foreignTable = details.relationship.remoteResource;
+        const tableFieldName = this.tableFieldName(foreignTable);
+        const { localAttributes, isUnique, isReferencee } =
+          details.relationship;
+
+        const multipleFks = localAttributes.length > 1;
+
+        const computedReverseMutationName = this.camelCase(
+          isUnique ? tableFieldName : this.pluralize(tableFieldName),
+        );
+
+        if (!isReferencee) {
+          return this.camelCase(
+            `${tableFieldName}_to_${localAttributes.join('_and_')}`,
+          );
+        }
+
+        if (!multipleFks) {
+          return this.camelCase(
+            `${computedReverseMutationName}_using_${localAttributes.join(
+              '_and_ ',
+            )}`,
+          );
+        }
+
+        return this.camelCase(
+          `${computedReverseMutationName}_to_${localAttributes.join('_and_')}`,
+        );
+      },
     },
   },
   schema: {
     hooks: {
       build(build) {
-        build.pgNestedRelationships = new Map();
+        build.pgNestedRelationships = [];
         build.pgNestedMutationTypes = new Set();
         build.pgNestedMutationConnectorTypes = [];
         return build;
@@ -99,12 +129,7 @@ export const PgNestedMutationsSchemaPlugin: GraphileConfig.Plugin = {
         const { pgResources } = build.input.pgRegistry;
 
         const {
-          graphql: {
-            GraphQLInputObjectType,
-            GraphQLNonNull,
-            GraphQLID,
-            GraphQLBoolean,
-          },
+          graphql: { GraphQLNonNull, GraphQLID, GraphQLBoolean, GraphQLList },
           inflection,
           pgNestedMutationTypes,
         } = build;
@@ -119,6 +144,10 @@ export const PgNestedMutationsSchemaPlugin: GraphileConfig.Plugin = {
           const details = gatherRelationshipData(table, build);
 
           for (const detail of details) {
+            const { relationship } = detail;
+            const foreignTable = relationship.remoteResource;
+            const foreignTableName = inflection.tableFieldName(foreignTable);
+
             const typeName = inflection.nestedConnectorFieldType(detail);
             build.recoverable(null, () => {
               if (!pgNestedMutationTypes.has(typeName)) {
@@ -135,9 +164,14 @@ export const PgNestedMutationsSchemaPlugin: GraphileConfig.Plugin = {
                   pgNestedMutationTypes.add(nestedConnectByNodeIdInputType);
                   build.registerInputObjectType(
                     nestedConnectByNodeIdInputType,
-                    {}, // scope
+                    {
+                      isNestedMutationInputType: true,
+                      isNestedMutationConnectInputType: true,
+                      isNestedMutationConnectByNodeIdType: true,
+                    }, // scope
                     () => ({
-                      description: '',
+                      description:
+                        'The globally unique `ID` look up for the row to connect.',
                       fields: ({ fieldWithHooks }) => {
                         return {
                           nodeId: fieldWithHooks(
@@ -145,13 +179,14 @@ export const PgNestedMutationsSchemaPlugin: GraphileConfig.Plugin = {
                               fieldName: 'nodeId',
                             },
                             () => ({
+                              description: `The globally unique \`ID\` which identifies a single \`${foreignTableName}\` to be connected.`,
                               type: new GraphQLNonNull(GraphQLID),
                             }),
                           ),
                         };
                       },
                     }),
-                    'some-helpful-string',
+                    `${foreignTableName}NodeIdConnectInput`,
                   );
                 }
                 const nestedConnectByKeyAttributesInputType =
@@ -168,13 +203,15 @@ export const PgNestedMutationsSchemaPlugin: GraphileConfig.Plugin = {
 
                   build.registerInputObjectType(
                     nestedConnectByKeyAttributesInputType,
-                    {}, // scope
+                    {
+                      isNestedMutationInputType: true,
+                      isNestedMutationConnectInputType: true,
+                    }, // scope
                     () => ({
-                      description: '',
+                      description: `The fields on \`${foreignTableName}\` to look up the row to connect.`,
                       fields: ({ fieldWithHooks }) => {
-                        const keys = detail.relationship.remoteAttributes;
-                        const codecs =
-                          detail.relationship.remoteResource.codec.attributes;
+                        const keys = relationship.remoteAttributes;
+                        const codecs = foreignTable.codec.attributes;
 
                         const fields = keys.reduce((acc, key) => {
                           const codec = codecs[key];
@@ -206,29 +243,50 @@ export const PgNestedMutationsSchemaPlugin: GraphileConfig.Plugin = {
                 const nestedCreateInputType =
                   inflection.nestedCreateInputType(detail);
 
-                // if (!pgNestedMutationTypes.has(nestedCreateInputType)) {
-                //   pgNestedMutationTypes.add(nestedCreateInputType);
+                if (!pgNestedMutationTypes.has(nestedCreateInputType)) {
+                  pgNestedMutationTypes.add(nestedCreateInputType);
 
-                //   build.registerInputObjectType(
-                //     nestedCreateInputType,
-                //     {},
-                //     () => ({
-                //       description: '',
-                //       fields: ({ fieldWithHooks }) => {
-                //         const tableName = inflection.tableFieldName(
-                //           detail.relationship.remoteResource,
-                //         );
-                //         const tableType = build.getGraphQLTypeByPgCodec(
-                //           detail.relationship.remoteResource.codec,
-                //           'output',
-                //         );
-
-                //         return {};
-                //       },
-                //     }),
-                //     'input-type-for-nested-create',
-                //   );
-                // }
+                  build.registerInputObjectType(
+                    nestedCreateInputType,
+                    {
+                      isNestedMutationInputType: true,
+                      isNestedMutationConnectInputType: true,
+                      isNestedInverseMutation: relationship.isReferencee,
+                    },
+                    () => ({
+                      description: `The \`${foreignTableName}\` to be created by this mutation.`,
+                      fields: ({ fieldWithHooks }) => {
+                        const foreignTableInputType =
+                          build.getGraphQLTypeByPgCodec(
+                            foreignTable.codec,
+                            'input',
+                          ) as GraphQLInputObjectType | undefined;
+                        const inputFields =
+                          foreignTableInputType?.getFields() ?? {};
+                        return Object.entries(inputFields).reduce(
+                          (acc, [k, v]) => {
+                            if (relationship.remoteAttributes.includes(k)) {
+                              return acc;
+                            }
+                            return {
+                              ...acc,
+                              [k]: fieldWithHooks(
+                                {
+                                  fieldName: k,
+                                },
+                                () => ({
+                                  type: v.type,
+                                }),
+                              ),
+                            };
+                          },
+                          {},
+                        );
+                      },
+                    }),
+                    'input-type-for-nested-create',
+                  );
+                }
 
                 const nestedConnectByKeyFieldName =
                   inflection.nestedConnectByKeyAttributesFieldName(detail);
@@ -242,22 +300,21 @@ export const PgNestedMutationsSchemaPlugin: GraphileConfig.Plugin = {
                 // nestedCreateTypes
 
                 // finally, nested connector type
-
                 build.registerInputObjectType(
                   typeName,
                   {}, // scope
                   () => ({
-                    description: '',
+                    description: `Input for the nested mutation of \`${foreignTableName}\` in the \`${inflection.tableType(
+                      table.codec,
+                    )}\` mutation.`,
                     fields: ({ fieldWithHooks }) => {
-                      build.getTypeByName(
-                        nestedConnectByKeyAttributesInputType,
-                      );
                       return {
                         deleteOthers: fieldWithHooks(
                           {
                             fieldName: 'deleteOthers',
                           },
                           () => ({
+                            description: `Flag indicating whether all other \`${foreignTableName}\` records that match this relationship should be removed.`,
                             type: GraphQLBoolean,
                           }),
                         ),
@@ -274,22 +331,50 @@ export const PgNestedMutationsSchemaPlugin: GraphileConfig.Plugin = {
                         ),
                         [nestedConnectByKeyFieldName]: fieldWithHooks(
                           { fieldName: nestedConnectByKeyFieldName },
-                          () => ({
-                            type: build.getTypeByName(
-                              nestedConnectByKeyAttributesInputType,
-                            ),
-                          }),
+                          () => {
+                            const getType = () => {
+                              const field = build.getTypeByName(
+                                nestedConnectByKeyAttributesInputType,
+                              );
+                              if (!relationship.isReferencee) {
+                                return field;
+                              }
+                              if (relationship.isUnique) {
+                                return field;
+                              }
+                              return new GraphQLList(
+                                field as GraphQLInputObjectType,
+                              );
+                            };
+                            return {
+                              description: `The primary key(s) for \`${foreignTableName}\` for the far side of the relationship.`,
+                              type: getType(),
+                            };
+                          },
                         ),
+                        create: fieldWithHooks({ fieldName: 'create' }, () => {
+                          const type = build.getTypeByName(
+                            nestedCreateInputType,
+                          );
+                          return {
+                            description: `A \`${build.getGraphQLTypeNameByPgCodec(
+                              foreignTable.codec,
+                              'output',
+                            )}\` object that will be created and connected to this object.`,
+                            type: !relationship.isReferencee
+                              ? type
+                              : new GraphQLList(type as GraphQLInputType),
+                          };
+                        }),
                       };
                     },
                   }),
                   'some-helpful-string',
                 );
-                build.pgNestedMutationConnectorTypes.push({
-                  leftTable: table,
-                  rightTable: detail.relationship.remoteResource,
+
+                build.pgNestedRelationships.push({
+                  ...detail,
                   typeName,
-                  isUnique: detail.relationship.isUnique,
                 });
               }
             });
@@ -298,55 +383,41 @@ export const PgNestedMutationsSchemaPlugin: GraphileConfig.Plugin = {
 
         return init;
       },
-      GraphQLInputObjectType_fields(fields, build, context) {
+      GraphQLInputObjectType_fields(inFields, build, context) {
+        let fields = inFields;
         const {
           extend,
           inflection,
           graphql: { GraphQLList },
+          getGraphQLTypeByPgCodec,
         } = build;
         const {
           fieldWithHooks,
           scope: { isPgRowType, pgCodec },
           Self,
         } = context;
+
         if (isPgRowType) {
           const table = build.pgTableResource(pgCodec as PgCodecWithAttributes);
+          const newFields = {};
 
-          const connections = build.pgNestedMutationConnectorTypes.filter(
-            ({ leftTable }) => leftTable === table,
-          );
-
-          const fieldsToAdd = connections.reduce<GraphQLInputFieldConfigMap>(
-            (acc, { leftTable, rightTable, typeName, isUnique }) => {
-              const fieldName = inflection.tableFieldName(rightTable);
-              const key = isUnique
-                ? fieldName
-                : inflection.pluralize(fieldName);
-              const baseType = build.getTypeByName(typeName) as
-                | GraphQLInputType
-                | undefined;
-              if (!baseType) {
-                throw new Error(`Could not find type ${typeName}`);
-              }
-              const type = isUnique
-                ? baseType
-                : (new GraphQLList(baseType) as GraphQLInputType);
-
-              return {
-                ...acc,
-                [key]: {
-                  type,
-                },
-              };
-            },
-            {},
+          const connections = build.pgNestedRelationships.filter(
+            (obj) => obj.table === table,
           );
 
           fields = extend(
             fields,
-            {
-              ...fieldsToAdd,
-            },
+            connections.reduce((memo, con) => {
+              const fieldName = inflection.nestedConnectorFieldName(con);
+              const typeName = inflection.nestedConnectorFieldType(con);
+              const type = build.getTypeByName(typeName);
+              return {
+                ...memo,
+                [fieldName]: fieldWithHooks({ fieldName }, () => ({
+                  type,
+                })),
+              };
+            }, {}),
             'add nested connector fields',
           );
         }

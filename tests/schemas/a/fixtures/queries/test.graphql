@@ -18,8 +18,12 @@ mutation {
       childrenByDadParentId {
         nodes {
           id
-          momParentId
-          dadParentId
+          momParent {
+            id
+          }
+          dadParent {
+            id
+          }
           name
         }
       }

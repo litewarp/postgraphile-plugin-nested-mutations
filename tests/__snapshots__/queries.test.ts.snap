@@ -2,8 +2,16 @@
 
 exports[`a query=test.graphql 1`] = `
 {
-  "errors": [
-    [GraphQLError: Field "childrenUsingId" is not defined by type "ParentInput". Did you mean "children"?],
-  ],
+  "data": {
+    "createParent": {
+      "parent": {
+        "childrenByDadParentId": {
+          "nodes": [],
+        },
+        "id": "WyJQYXJlbnQiLDJd",
+        "name": "test f1",
+      },
+    },
+  },
 }
 `;

@@ -1,29 +1,82 @@
-import { makeSchema } from 'postgraphile';
-import { PostGraphileAmberPreset } from 'postgraphile/presets/amber';
-import { PgManyToManyPreset } from '@graphile-contrib/pg-many-to-many';
-import { makePgService } from 'postgraphile/adaptors/pg';
-import type { PoolClient } from 'pg';
-import { Pool } from 'pg';
+import * as fs from 'node:fs';
+import path from 'node:path';
+import * as pg from 'pg';
+import type { GraphQLSchema } from 'graphql';
+import { parse, buildASTSchema } from 'graphql';
+import { lexicographicSortSchema, printSchema } from 'graphql/utilities';
 
-export async function withPgClient<
-  TResult = Record<string, unknown> | unknown[],
->(opts: { cb: (pgClient: PoolClient) => Promise<TResult>; url?: string }) {
-  const { cb, url = process.env.TEST_DATABASE_URL } = opts;
-
-  const pgPool = new Pool({ connectionString: url });
-  let client: PoolClient | null = null;
-
+export async function withPgPool<T>(
+  cb: (pool: pg.Pool) => Promise<T>,
+): Promise<T> {
+  const pool = new pg.Pool({
+    connectionString: process.env.TEST_DATABASE_URL,
+  });
   try {
-    client = await pgPool.connect();
-    await client.query('begin');
-    await client.query("set local timezone to '+04:00'");
-    const result = await cb(client);
-    await client.query('rollback');
-    return result;
+    return await cb(pool);
   } finally {
-    if (client) {
+    await pool.end();
+  }
+}
+
+export async function withPgClient<T>(
+  cb: (client: pg.PoolClient) => Promise<T>,
+): Promise<T> {
+  return withPgPool(async (pool) => {
+    const client = await pool.connect();
+    try {
+      return await cb(client);
+    } finally {
       client.release();
     }
-    await pgPool.end();
-  }
+  });
+}
+
+export async function withTransaction<T>(
+  cb: (client: pg.PoolClient) => Promise<T>,
+  closeCommand = 'rollback',
+): Promise<T> {
+  return withPgClient(async (client) => {
+    await client.query('begin');
+    try {
+      return await cb(client);
+    } finally {
+      await client.query(closeCommand);
+    }
+  });
+}
+
+export function printSchemaOrdered(originalSchema: GraphQLSchema): string {
+  // Clone schema so we don't damage anything
+  const schema = buildASTSchema(parse(printSchema(originalSchema)));
+
+  return printSchema(lexicographicSortSchema(schema));
+}
+
+export function getFixturesForSqlSchema(sqlSchema: string) {
+  return fs.existsSync(
+    path.resolve(__dirname, 'schemas', sqlSchema, 'fixtures', 'queries'),
+  )
+    ? fs
+        .readdirSync(
+          path.resolve(__dirname, 'schemas', sqlSchema, 'fixtures', 'queries'),
+        )
+        .sort()
+    : [];
+}
+
+export async function readFixtureForSqlSchema(
+  sqlSchema: string,
+  fixture: string,
+) {
+  return fs.promises.readFile(
+    path.resolve(
+      __dirname,
+      'schemas',
+      sqlSchema,
+      'fixtures',
+      'queries',
+      fixture,
+    ),
+    'utf8',
+  );
 }
