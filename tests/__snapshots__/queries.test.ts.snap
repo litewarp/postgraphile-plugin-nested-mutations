@@ -8,7 +8,7 @@ exports[`a query=test.graphql 1`] = `
         "childrenByDadParentId": {
           "nodes": [],
         },
-        "id": "WyJQYXJlbnQiLDJd",
+        "id": "WyJQYXJlbnQiLDNd",
         "name": "test f1",
       },
     },

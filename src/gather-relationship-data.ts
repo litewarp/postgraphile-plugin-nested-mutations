@@ -16,6 +16,7 @@ export function gatherRelationshipData(
         relationName: relationName,
         table: leftTable,
         relationship: rightRelation,
+        typeName: '',
       };
 
       return [...acc, details];

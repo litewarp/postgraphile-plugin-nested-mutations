@@ -12,9 +12,9 @@ import { PgSimplifyInflectionPreset } from '@graphile/simplify-inflection';
 import { PostGraphileRelayPreset } from 'postgraphile/presets/relay';
 import type { Pool } from 'pg';
 import { makeWithPgClientViaPgClientAlreadyInTransaction } from 'postgraphile/adaptors/pg';
-import { exportSchemaAsString } from 'graphile-export';
 import { NestedMutationPreset } from '../src';
 import { withPgClient, withPgPool } from './helpers';
+import { printOrderedSchema } from './print-ordered-schema';
 
 const readFixtureForSqlSchema = async (sqlSchema: string, fixture: string) =>
   readFile(
@@ -54,7 +54,7 @@ const createPostGraphileSchema = async (pgPool: Pool, sqlSchema: string) => {
   });
   await writeFile(
     './tmp/schema.graphql',
-    (await exportSchemaAsString(gs.schema, { mode: 'graphql-js' })).code,
+    printOrderedSchema(gs.schema),
     'utf8',
   );
   return gs;
@@ -88,6 +88,20 @@ beforeAll(async () => {
 
 describe.each(sqlSchemas)('%s', (sqlSchema) => {
   beforeEach(async () => {
+    // reset db
+    await withPgClient(async (pgClient) => {
+      const schema = await readFile(
+        path.resolve(__dirname, 'schemas', sqlSchema, 'schema.sql'),
+        'utf8',
+      );
+      await pgClient.query(schema);
+      const data = await readFile(
+        path.resolve(__dirname, 'schemas', sqlSchema, 'data.sql'),
+        'utf8',
+      );
+      await pgClient.query(data);
+    });
+
     gqlSchema = await withPgPool(async (pool) =>
       createPostGraphileSchema(pool, sqlSchema),
     );

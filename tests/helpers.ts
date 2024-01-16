@@ -45,13 +45,6 @@ export async function withTransaction<T>(
   });
 }
 
-export function printSchemaOrdered(originalSchema: GraphQLSchema): string {
-  // Clone schema so we don't damage anything
-  const schema = buildASTSchema(parse(printSchema(originalSchema)));
-
-  return printSchema(lexicographicSortSchema(schema));
-}
-
 export function getFixturesForSqlSchema(sqlSchema: string) {
   return fs.existsSync(
     path.resolve(__dirname, 'schemas', sqlSchema, 'fixtures', 'queries'),
