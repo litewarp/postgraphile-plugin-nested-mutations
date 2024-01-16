@@ -6,7 +6,7 @@ import { PostGraphileAmberPreset } from 'postgraphile/presets/amber';
 import { PgManyToManyPreset } from '@graphile-contrib/pg-many-to-many';
 import { hookArgs, grafastGraphql as graphql } from 'grafast';
 import { parse, printSchema } from 'graphql';
-import { makeV4Preset } from 'postgraphile/presets/v4';
+import { PgSimplifyInflectionPreset } from '@graphile/simplify-inflection';
 import { NestedMutationPreset } from '../src';
 import { withPgClient } from './helpers';
 
@@ -39,12 +39,12 @@ async function queryResult(sqlSchema: string, fixture: string) {
         'utf8',
       );
 
-      await pgClient.query(data);
+      const res = await pgClient.query(data);
 
       const { schema, resolvedPreset } = await makeSchema({
         extends: [
           PostGraphileAmberPreset,
-          makeV4Preset(),
+          PgSimplifyInflectionPreset,
           PgManyToManyPreset,
           NestedMutationPreset,
         ],

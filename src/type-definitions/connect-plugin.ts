@@ -14,7 +14,7 @@ export const PostGraphileNestedConnectorsPlugin: GraphileConfig.Plugin = {
   inflection: {
     add: {
       nestedConnectByNodeIdFieldName() {
-        return this.camelCase(`connect_by_${this.nodeIdFieldName()}`);
+        return this.camelCase(`connect_by_node_id_${this.nodeIdFieldName()}`);
       },
       nestedConnectByKeyFieldName(options, resource) {
         const keys = resource.uniques.reduce((acc, unique) => {
@@ -54,7 +54,7 @@ export const PostGraphileNestedConnectorsPlugin: GraphileConfig.Plugin = {
         // create obj to store data in
         const pgNestedMutationsByTypeName: Record<
           string,
-          Record<string, unknown>
+          { table: PgTableResource; fieldName: string }
         > = {};
 
         const { pgResources } = build.input.pgRegistry;
@@ -84,6 +84,7 @@ export const PostGraphileNestedConnectorsPlugin: GraphileConfig.Plugin = {
               {
                 isNestedMutationInputType: true,
                 isNestedMutationConnectByNodeIdType: true,
+                pgCodec: foreignTable.codec,
               },
               () => ({
                 description: `The globally unique \`ID\` look up for the row to connect.`,
@@ -105,7 +106,10 @@ export const PostGraphileNestedConnectorsPlugin: GraphileConfig.Plugin = {
             ];
             if (!pgNestedMutationsByTypeName[connectByNodeId[1]]) {
               build.registerInputObjectType(...connectByNodeIdInputType);
-              pgNestedMutationsByTypeName[connectByNodeId[1]] = {};
+              pgNestedMutationsByTypeName[connectByNodeId[1]] = {
+                table: foreignTable,
+                fieldName: connectByNodeId[0],
+              };
             }
 
             const codecs = Object.entries(foreignTable.codec.attributes).filter(
@@ -122,6 +126,7 @@ export const PostGraphileNestedConnectorsPlugin: GraphileConfig.Plugin = {
               {
                 isNestedMutationInputType: true,
                 isNestedMutationConnectInputType: true,
+                pgCodec: foreignTable.codec,
               },
               () => ({
                 description: `The fields on \`${inflection.tableFieldName(
@@ -145,10 +150,16 @@ export const PostGraphileNestedConnectorsPlugin: GraphileConfig.Plugin = {
 
             if (!pgNestedMutationsByTypeName[connectByKeyField[1]]) {
               build.registerInputObjectType(...connectByKeyInputType);
-              pgNestedMutationsByTypeName[connectByKeyField[1]] = {};
+              pgNestedMutationsByTypeName[connectByKeyField[1]] = {
+                table: foreignTable,
+                fieldName: connectByKeyField[0],
+              };
             }
+            console.log(pgNestedMutationsByTypeName);
           }
         }
+
+        // build.pgNestedMutationsByTypeName = pgNestedMutationsByTypeName;
 
         // attach obj to build
         // build.extend(
@@ -158,6 +169,26 @@ export const PostGraphileNestedConnectorsPlugin: GraphileConfig.Plugin = {
         // );
 
         return init;
+      },
+      GraphQLInputObjectType_fields(fields, build, context) {
+        const {
+          extend,
+          sql,
+          grafast,
+          inflection,
+          graphql: { GraphQLInputObjectType },
+        } = build;
+
+        const {
+          scope: {
+            isNestedMutationInputType,
+            isNestedMutationConnectByNodeIdType,
+            isNestedMutationConnectInputType,
+            pgCodec,
+          },
+        } = context;
+
+        return fields;
       },
     },
   },

@@ -19,3 +19,7 @@ create table
         constraint child_mom_parent_fkey foreign key (mom_parent_id) references a.parent (id),
         constraint child_dad_parent_fkey foreign key (dad_parent_id) references a.parent (id)
     );
+
+create index on a.child (mom_parent_id);
+
+create index on a.child (dad_parent_id);

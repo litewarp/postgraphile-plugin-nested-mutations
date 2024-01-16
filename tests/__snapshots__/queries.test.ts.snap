@@ -3,7 +3,7 @@
 exports[`a query=test.graphql 1`] = `
 {
   "errors": [
-    [GraphQLError: Field "childrenUsingId" is not defined by type "ParentInput".],
+    [GraphQLError: Field "childrenUsingId" is not defined by type "ParentInput". Did you mean "children"?],
   ],
 }
 `;

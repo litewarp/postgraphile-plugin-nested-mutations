@@ -15,9 +15,18 @@ export type PgTableResource = PgResource<
   PgRegistry
 >;
 
+export type PgNestedConnectorsInflectionFn = (
+  this: GraphileBuild.Inflection,
+  details: PgNestedMutationRelationDetails,
+) => string;
+
 export type PgTableRelationship = ReturnType<
   PgTableResource['getRelations']
 >[1];
+
+export type BuildInputObjectArguments = Parameters<
+  GraphileBuild.Build['registerInputObjectType']
+>;
 
 export interface PgNestedMutationRelationDetails {
   relationName: string;
@@ -25,80 +34,30 @@ export interface PgNestedMutationRelationDetails {
   relationship: PgTableRelationship;
 }
 
+export interface PgNestedConnectorTypeObj {
+  leftTable: PgTableResource;
+  rightTable: PgTableResource;
+  isUnique: boolean;
+  typeName: string;
+}
+
 declare global {
   namespace GraphileBuild {
     interface Build {
-      pgNestedRelationshipsByResource: Map<
+      pgNestedRelationships: Map<
         PgTableResource,
         PgNestedMutationRelationDetails[]
       >;
-      pgNestedPluginForwardInputType: Record<string, unknown>;
-      pgNestedPluginReverseInputType: Record<string, unknown>;
-      pgNestedCreateResolvers: Record<string, unknown>;
-      pgNestedUpdateResolvers: Record<string, unknown>;
-      pgNestedMutationsByTypeName: Record<string, unknown>;
-      pgNestedFieldName: (options: unknown[]) => string;
-      pgNestedTableConnect: (options: unknown[]) => Promise<unknown>;
-      pgNestedTableConnectorFields: Record<string, unknown>;
-      pgNestedTableDelete: (options: unknown[]) => Promise<unknown>;
-      pgNestedTableDeleterFields: Record<string, unknown>;
-      pgNestedTableUpdate: (options: unknown[]) => Promise<unknown>;
-      pgNestedTableUpdaterFields: Record<string, unknown>;
+      pgNestedMutationConnectorTypes: PgNestedConnectorTypeObj[];
+      pgNestedMutationTypes: Set<string>;
     }
     interface Inflection {
-      nestedConnectByNodeIdFieldName: (
-        this: Inflection,
-        resource: PgResource,
-      ) => string;
-      nestedConnectByKeyFieldName: (
-        this: Inflection,
-        resource: PgResource,
-      ) => string;
-      nestedConnectByNodeIdInputType: (
-        this: Inflection,
-        resource: PgResource,
-      ) => string;
-      nestedConnectByKeyInputType: (
-        this: Inflection,
-        resource: PgResource,
-      ) => string;
-      nestedConnectorType: (
-        this: Inflection,
-        rel: PgNestedMutationRelationDetails,
-      ) => string;
-      nestedCreateInputType: (
-        this: Inflection,
-        rel: PgNestedMutationRelationDetails,
-      ) => string;
-      nestedDeleteByNodeIdField: (
-        this: Inflection,
-        resource: PgResource,
-      ) => string;
-      nestedDeleteByKeyField: (
-        this: Inflection,
-        resource: PgResource,
-      ) => string;
-      nestedDeleteByNodeIdInputType: (
-        this: Inflection,
-        resource: PgResource,
-      ) => string;
-      nestedDeleteByKeyInputType: (
-        this: Inflection,
-        resource: PgResource,
-      ) => string;
-      nestedUpdateByNodeIdField: (
-        this: Inflection,
-        resource: PgResource,
-      ) => string;
-      nestedUpdateByKeyField: (
-        this: Inflection,
-        resource: PgResource,
-      ) => string;
-      nestedUpdatePatchType: (this: Inflection, resource: PgResource) => string;
-      nestedUpdateByKeyInputType: (
-        this: Inflection,
-        resource: PgResource,
-      ) => string;
+      nestedConnectByNodeIdInputType: PgNestedConnectorsInflectionFn;
+      nestedConnectByNodeIdFieldName: PgNestedConnectorsInflectionFn;
+      nestedConnectByKeyAttributesInputType: PgNestedConnectorsInflectionFn;
+      nestedConnectByKeyAttributesFieldName: PgNestedConnectorsInflectionFn;
+      nestedCreateInputType: PgNestedConnectorsInflectionFn;
+      nestedConnectorFieldType: PgNestedConnectorsInflectionFn;
     }
 
     interface ScopeInputObject {
@@ -113,10 +72,6 @@ declare global {
       isNestedMutationUpdateByNodeIdType?: boolean;
       isNestedMutationPatchType?: boolean;
       pgNestedForeignInflection?: PgResource;
-    }
-
-    interface ScopeObjectFieldsField {
-      isNodeIdConnector: boolean;
     }
   }
 }

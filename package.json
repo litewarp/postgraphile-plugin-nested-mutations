@@ -54,5 +54,9 @@
   },
   "peerDependencies": {
     "postgraphile": "5.0.0-beta.18"
+  },
+  "graphql": {
+    "schema": "./tmp/schema.graphql",
+    "documents": "./tests/**/*.graphql"
   }
 }

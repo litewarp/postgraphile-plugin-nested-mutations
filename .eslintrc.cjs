@@ -11,14 +11,17 @@ module.exports = {
   },
   plugins: ['only-warn'],
   rules: {
+    '@typescript-eslint/method-signature-style': 'off',
     '@typescript-eslint/no-namespace': 'off',
     '@typescript-eslint/no-unsafe-call': 'off',
+    '@typescript-eslint/no-unsafe-argument': 'off',
     '@typescript-eslint/no-unsafe-member-access': 'off',
     '@typescript-eslint/explicit-function-return-type': 'off',
     '@typescript-eslint/no-unsafe-assignment': 'off',
     '@typescript-eslint/no-unsafe-return': 'off',
     'eslint-comments/require-description': 'off',
     'no-console': 'warn',
+    'no-param-reassign': 'off',
   },
   settings: {
     'import/resolver': {
