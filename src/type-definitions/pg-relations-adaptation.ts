@@ -1,9 +1,9 @@
-import { type PgCodecWithAttributes, type PgResource } from '@dataplan/pg';
-import type {
-  GraphQLInputFieldConfigMap,
-  GraphQLInputObjectType,
-  GraphQLInputType,
-} from 'graphql';
+import {
+  pgInsertSingle,
+  type PgCodecWithAttributes,
+  type PgResource,
+} from '@dataplan/pg';
+import type { GraphQLInputObjectType, GraphQLInputType } from 'graphql';
 import { gatherRelationshipData } from '../gather-relationship-data';
 import type { PgTableResource } from '../interfaces';
 
@@ -117,6 +117,7 @@ export const PgNestedMutationsSchemaPlugin: GraphileConfig.Plugin = {
     },
   },
   schema: {
+    entityBehavior: {},
     hooks: {
       build(build) {
         build.pgNestedRelationships = [];
@@ -265,7 +266,7 @@ export const PgNestedMutationsSchemaPlugin: GraphileConfig.Plugin = {
                           foreignTableInputType?.getFields() ?? {};
                         return Object.entries(inputFields).reduce(
                           (acc, [k, v]) => {
-                            if (relationship.remoteAttributes.includes(k)) {
+                            if (relationship.localAttributes.includes(k)) {
                               return acc;
                             }
                             return {

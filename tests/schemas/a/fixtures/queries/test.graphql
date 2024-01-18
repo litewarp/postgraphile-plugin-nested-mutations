@@ -3,11 +3,11 @@ mutation {
     input: {
       parent: {
         name: "test f1"
-        childrenUsingId: {
-          create: [
-            { name: "child 1 of test f1" }
-            { name: "child 2 of test f1" }
-          ]
+        childrenToIdUsingMomParentId: {
+          create: [{ name: "child 2 of test f1" }]
+        }
+        childrenToIdUsingDadParentId: {
+          create: [{ name: "child 1 of test f1" }]
         }
       }
     }

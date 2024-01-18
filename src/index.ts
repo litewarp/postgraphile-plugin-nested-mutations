@@ -1,7 +1,7 @@
 import type { GraphileConfig } from 'graphile-build';
 import { PostGraphileNestedConnectorsPlugin } from './type-definitions/connect-plugin';
-import { PgNestedMutationsSchemaPlugin } from './type-definitions/pg-relations-adaptation';
+import { PostGraphileNestedTypesPlugin } from './type-definitions/type-plugin';
 
 export const NestedMutationPreset: GraphileConfig.Preset = {
-  plugins: [PgNestedMutationsSchemaPlugin],
+  plugins: [PostGraphileNestedConnectorsPlugin, PostGraphileNestedTypesPlugin],
 };

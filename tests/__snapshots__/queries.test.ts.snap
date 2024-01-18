@@ -15,3 +15,21 @@ exports[`a query=test.graphql 1`] = `
   },
 }
 `;
+
+exports[`b query=test.graphql 1`] = `
+{
+  "data": {
+    "createJob": {
+      "job": {
+        "id": "WyJKb2IiLDFd",
+        "jobRelationshipsByFromJobId": {
+          "nodes": [],
+        },
+        "jobRelationshipsByToJobId": {
+          "nodes": [],
+        },
+      },
+    },
+  },
+}
+`;

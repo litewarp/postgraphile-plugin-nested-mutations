@@ -36,7 +36,6 @@ const createPostGraphileSchema = async (pgPool: Pool, sqlSchema: string) => {
       PgSimplifyInflectionPreset,
       PgManyToManyPreset,
       NestedMutationPreset,
-      PostGraphileRelayPreset,
     ],
     pgServices: [
       {
@@ -53,7 +52,7 @@ const createPostGraphileSchema = async (pgPool: Pool, sqlSchema: string) => {
     ],
   });
   await writeFile(
-    './tmp/schema.graphql',
+    `./tmp/${sqlSchema}.graphql`,
     printOrderedSchema(gs.schema),
     'utf8',
   );
@@ -147,6 +146,7 @@ describe.each(sqlSchemas)('%s', (sqlSchema) => {
       if (result.errors) {
         console.log(result.errors.map((e: any) => e.originalError ?? e));
       }
+      console.log(JSON.stringify(result.data, null, 2));
       expect(result).toMatchSnapshot();
     });
   }
