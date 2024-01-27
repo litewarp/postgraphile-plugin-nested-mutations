@@ -47,6 +47,9 @@ devDependencies:
   eslint-config-prettier:
     specifier: ^9.1.0
     version: 9.1.0(eslint@8.56.0)
+  eslint-plugin-graphile-export:
+    specifier: 0.0.2-beta.3
+    version: 0.0.2-beta.3(eslint@8.56.0)
   eslint-plugin-markdown:
     specifier: ^3.0.1
     version: 3.0.1(eslint@8.56.0)
@@ -2952,6 +2955,16 @@ packages:
       escape-string-regexp: 1.0.5
       eslint: 8.56.0
       ignore: 5.2.4
+    dev: true
+
+  /eslint-plugin-graphile-export@0.0.2-beta.3(eslint@8.56.0):
+    resolution: {integrity: sha512-BcYuek+HUtpiwRlxf488FwxbUUapD2E4oaTPmDWu/9sNCjzTxGfg4IO5epD+HqkJh++WvtCthGe3/8zCVQqZyA==}
+    engines: {node: '>=16'}
+    peerDependencies:
+      eslint: ^3.0.0 || ^4.0.0 || ^5.0.0 || ^6.0.0 || ^7.0.0 || ^8.0.0-0
+    dependencies:
+      eslint: 8.56.0
+      tslib: 2.6.2
     dev: true
 
   /eslint-plugin-import@2.29.0(@typescript-eslint/parser@6.9.0)(eslint-import-resolver-typescript@3.6.1)(eslint@8.56.0):

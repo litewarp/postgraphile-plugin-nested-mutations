@@ -4,12 +4,13 @@ module.exports = {
   extends: [
     require.resolve('@vercel/style-guide/eslint/node'),
     require.resolve('@vercel/style-guide/eslint/typescript'),
+    'plugin:graphile-export/recommended',
     'plugin:markdown/recommended',
   ],
   parserOptions: {
     project: require.resolve('./tsconfig.json'),
   },
-  plugins: ['only-warn'],
+  plugins: ['only-warn', 'graphile-export'],
   rules: {
     '@typescript-eslint/method-signature-style': 'off',
     '@typescript-eslint/no-namespace': 'off',

@@ -1,12 +1,19 @@
 import { GraphileConfig } from 'graphile-build';
-import { isPgTableResource } from './connect-plugin';
-import { GrafastInputFieldConfig } from 'grafast';
-import type {
-  GraphQLInputFieldConfigMap,
-  GraphQLInputObjectType,
-  GraphQLScalarType,
-} from 'graphql';
-import { PgCodecWithAttributes } from '@dataplan/pg';
+import { isPgTableResource } from './helpers';
+import {
+  FieldArgs,
+  GrafastInputFieldConfig,
+  GrafastInputFieldConfigMap,
+  __InputListStep,
+  __InputObjectStep,
+  each,
+} from 'grafast';
+import { GraphQLInputObjectType } from 'graphql';
+import {
+  PgCodecWithAttributes,
+  PgInsertSingleStep,
+  pgInsertSingle,
+} from '@dataplan/pg';
 
 export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
   name: 'post_graphile_nested_types_plugin',
@@ -64,8 +71,6 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
         const multipleFks =
           Object.keys(details.table.getRelations()).length > 1;
 
-        console.log(details.table.name, details.table.uniques, localAttributes);
-
         const computedReverseMutationName = this.camelCase(
           isUnique ? tableFieldName : this.pluralize(tableFieldName),
         );
@@ -99,7 +104,7 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
         build.pgNestedPluginForwardInputTypes = {};
         build.pgNestedPluginReverseInputTypes = {};
         build.pgNestedTableDeleterFields = {};
-        build.pgNestedFieldName = '';
+        build.pgNestedPluginFieldMap = new Map();
         return build;
       },
 
@@ -109,11 +114,11 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
           getGraphQLTypeByPgCodec,
           pgNestedPluginForwardInputTypes,
           pgNestedPluginReverseInputTypes,
-          pgNestedConnectorFields,
+          pgNestedTableConnectorFields,
           pgNestedTableDeleterFields,
           pgNestedTableUpdaterFields,
-          pgNestedFieldName,
           pgTableResource,
+          EXPORTABLE,
           graphql: { GraphQLInputObjectType, GraphQLList, GraphQLNonNull },
         } = build;
 
@@ -154,7 +159,6 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
             };
 
             const fieldName = inflection.nestedConnectorFieldName(detail);
-            console.log(fieldName);
 
             const nestedConnectorFieldType =
               inflection.nestedConnectorFieldType(detail);
@@ -170,8 +174,10 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
               build.registerInputObjectType(
                 nestedConnectorFieldType,
                 {
+                  isNestedMutationInputType: true,
                   isNestedMutationConnectorType: true,
-                  isNestedInverseMutation: !isForward,
+                  isNestedInverseMutation: relationship.isReferencee,
+                  pgCodec: table.codec,
                 },
                 () => ({
                   description: `Input for the nested mutation of \`${foreignTableName}\` in the \`${tableTypeName}\` mutation.`,
@@ -188,15 +194,23 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
 
                     // add delete others field if backwards relation and deleteable
 
-                    pgNestedConnectorFields[foreignTable.name]?.forEach(
+                    pgNestedTableConnectorFields[foreignTable.name]?.forEach(
                       ({
                         typeName,
                         fieldName: connectorFieldName,
                         relationship,
+                        isNodeIdConnector,
                       }) => {
                         operations[connectorFieldName] = fieldWithHooks(
-                          { fieldName: connectorFieldName },
+                          {
+                            fieldName: connectorFieldName,
+                            isNestedMutationInputType: true,
+                            ...(isNodeIdConnector
+                              ? { isNestedMutationConnectByNodeIdType: true }
+                              : { isNestedMutationConnectByKeyType: true }),
+                          },
                           () => ({
+                            description: `The primary key(s) for \`${foreignTableName}\` for the far side of the relationship.`,
                             type: relationship.isUnique
                               ? build.getInputTypeByName(typeName)
                               : new GraphQLList(
@@ -204,8 +218,6 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
                                     build.getInputTypeByName(typeName),
                                   ),
                                 ),
-
-                            description: `The primary key(s) for \`${foreignTableName}\` for the far side of the relationship.`,
                           }),
                         );
                       },
@@ -228,7 +240,7 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
                         return Object.entries(inputFields).reduce(
                           (memo, [k, v]) => {
                             if (v) {
-                              return { ...memo, [k]: v };
+                              return { ...memo, [inflection.camelCase(k)]: v };
                             }
                             return memo;
                           },
@@ -254,6 +266,31 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
                       }),
                     );
 
+                    const detailInput = {
+                      resource: table,
+                      unique: table.uniques[0]!,
+                    };
+
+                    // add create type
+
+                    if (detailInput.unique) {
+                      // add fields to map
+                      const allFieldNames = [
+                        inflection.updateByKeysField(detailInput),
+                        inflection.updateNodeField(detailInput),
+                        inflection.createField(table),
+                        inflection.deleteByKeysField(detailInput),
+                        inflection.deleteNodeField(detailInput),
+                      ];
+
+                      for (const fieldName of allFieldNames) {
+                        build.pgNestedPluginFieldMap.set(fieldName, {
+                          fieldNames: Object.keys(operations),
+                          tableName: table.name,
+                        });
+                      }
+                    }
+
                     return operations;
                   },
                 }),
@@ -278,28 +315,192 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
 
         return init;
       },
+
+      GraphQLObjectType_fields_field(field, build, context) {
+        const {
+          scope: { fieldName, isRootMutation },
+          Self,
+        } = context;
+
+        const {
+          inflection,
+          getTypeByName,
+          pgNestedPluginForwardInputTypes,
+          pgNestedPluginReverseInputTypes,
+          EXPORTABLE,
+        } = build;
+
+        if (isRootMutation) {
+          const deets = build.pgNestedPluginFieldMap.get(fieldName);
+          if (!deets) {
+            return field;
+          }
+
+          const { tableName, fieldNames } = deets;
+
+          const forward = pgNestedPluginForwardInputTypes[tableName] ?? [];
+          const reverse = pgNestedPluginReverseInputTypes[tableName] ?? [];
+
+          const combined = [...forward, ...reverse].map((x) => x.name);
+
+          /**
+           * Step One - Pass the arguments from the root object down
+           */
+
+          return {
+            ...field,
+            plan($parentPlan, args, info) {
+              console.log('STEP ONE', fieldName);
+              if (!field.plan) {
+                throw new Error('No plan');
+              }
+              const $oldPlan = field.plan($parentPlan, args, info);
+              const $inputPlan = $oldPlan.get('result');
+              combined.forEach((lename) => {
+                if (!lename) {
+                  return;
+                }
+                args.apply($inputPlan, ['input', tableName, lename]);
+              });
+              return $oldPlan;
+            },
+          };
+        }
+
+        return field;
+      },
+
+      GraphQLInputObjectType_fields_field(inField, build, context) {
+        const {
+          scope: {
+            fieldName,
+            fieldBehaviorScope,
+            pgCodec,
+            isPgRowType,
+            isMutationInput,
+            isNestedMutationConnectorType,
+          },
+          Self,
+          type,
+        } = context;
+
+        const {
+          pgNestedPluginForwardInputTypes,
+          pgNestedPluginReverseInputTypes,
+          EXPORTABLE,
+        } = build;
+
+        if (fieldName === 'create') {
+          const found = [
+            ...Object.values(pgNestedPluginForwardInputTypes),
+            ...Object.values(pgNestedPluginReverseInputTypes),
+          ].find((types) => {
+            if (types.find((x) => x.connectorInputFieldType === Self.name)) {
+              return true;
+            }
+          });
+
+          if (found && found[0]) {
+            const foreignTable = found[0].relationship.remoteResource;
+
+            return {
+              ...inField,
+              applyPlan: EXPORTABLE(
+                () =>
+                  function ($parent, fieldArgs) {
+                    console.log('STEP FOUR', Self.name, 'create');
+
+                    const $list = fieldArgs.getRaw();
+
+                    const $alllist = each($list, ($item) => {
+                      return $item.get('result');
+                    });
+                    console.log($alllist);
+                    return $parent;
+                  },
+                [],
+              ),
+            };
+          }
+        }
+
+        // proxy for table input
+        if (isMutationInput && fieldBehaviorScope === 'insert:input:record') {
+          return {
+            ...inField,
+            applyPlan: EXPORTABLE(
+              () =>
+                function ($parent, fieldArgs) {
+                  console.log('STEP TWO', fieldName);
+                  return $parent;
+                },
+              [],
+            ),
+          };
+        }
+
+        if (isPgRowType) {
+          const table = build.pgTableResource(pgCodec as PgCodecWithAttributes);
+
+          if (!table) {
+            throw new Error(`Could not find table for ${pgCodec?.name}`);
+          }
+
+          const forward = pgNestedPluginForwardInputTypes[table.name] ?? [];
+          const reverse = pgNestedPluginReverseInputTypes[table.name] ?? [];
+
+          const combined = [...forward, ...reverse];
+
+          if (combined.find((c) => c.name === fieldName)) {
+            return {
+              ...inField,
+              applyPlan: EXPORTABLE(
+                (fieldName) =>
+                  function ($parent, fieldArgs) {
+                    console.log('STEP THREE', fieldName);
+                    return $parent;
+                  },
+                [fieldName],
+              ),
+            };
+          }
+        }
+
+        return inField;
+      },
+
       GraphQLInputObjectType_fields(inFields, build, context) {
         const {
           inflection,
           extend,
           pgNestedPluginForwardInputTypes,
           pgNestedPluginReverseInputTypes,
+          EXPORTABLE,
         } = build;
 
         const {
-          scope: { isPgRowType, pgCodec, isPgPatch },
+          scope: {
+            isPgRowType,
+            pgCodec,
+            isPgPatch,
+            isMutationInput,
+            pgResource,
+          },
           Self,
           fieldWithHooks,
         } = context;
 
         let fields = inFields;
 
-        const nestedFields: GraphQLInputFieldConfigMap = {};
         if (isPgRowType && pgCodec) {
           const table = build.pgTableResource(pgCodec as PgCodecWithAttributes);
+
           if (!table) {
             throw new Error(`Could not find table for ${pgCodec.name}`);
           }
+
+          const nestedFields: GrafastInputFieldConfigMap<any, any> = {};
+
           const forwardTypes =
             pgNestedPluginForwardInputTypes[table.name] ?? [];
 
@@ -311,63 +512,114 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
             relationship: { localAttributes },
             name,
             connectorInputFieldType,
+            relationName,
           } of forwardTypes) {
+            if (!connectorInputFieldType) {
+              throw new Error(
+                `connectorInputFieldType missing for ${relationName}`,
+              );
+            }
+            if (!name) {
+              throw new Error(
+                `fieldName missing for ${connectorInputFieldType}`,
+              );
+            }
             // override nulls on keys that have forward mutations available
-            localAttributes.forEach((attr) => {
-              const field = fields[inflection.camelCase(attr)];
-              if (!field) {
-                throw new Error(
-                  `Could not find field ${attr} on input object ${Self.name}`,
-                );
-              }
 
-              const codec = table.codec.attributes[attr];
-              if (!codec) {
-                throw new Error(
-                  `Could not find codec for ${attr} on table ${table.name}`,
-                );
-              }
+            // localAttributes.forEach((attr) => {
+            //   const field = fields[inflection.camelCase(attr)];
+            //   if (!field) {
+            //     throw new Error(
+            //       `Could not find field ${attr} on input object ${Self.name}`,
+            //     );
+            //   }
 
-              const type = build.getGraphQLTypeByPgCodec(
-                codec.codec,
-                'input',
-              ) as GraphQLScalarType;
-              if (!type) {
-                throw new Error(`Could not find type for codec ${codec}`);
-              }
-              nestedFields[attr] = {
-                ...field,
-                type,
-              };
-            });
+            //   const codec = table.codec.attributes[attr];
+            //   if (!codec) {
+            //     throw new Error(
+            //       `Could not find codec for ${attr} on table ${table.name}`,
+            //     );
+            //   }
+
+            //   const type = build.getGraphQLTypeByPgCodec(
+            //     codec.codec,
+            //     'input',
+            //   ) as GraphQLScalarType;
+            //   if (!type) {
+            //     throw new Error(`Could not find type for codec ${codec}`);
+            //   }
+            //   nestedFields[inflection.camelCase(attr)] = {
+            //     ...field,
+            //     type,
+            //   };
+            // });
 
             nestedFields[name] = fieldWithHooks(
               {
                 fieldName: name,
+                isNestedMutationInputField: true,
               },
               () => ({
                 type: build.getInputTypeByName(connectorInputFieldType),
+                // autoApplyAfterParentApplyPlan: true,
+                // applyPlan: EXPORTABLE(
+                //   (name) =>
+                //     function ($parent, fieldArgs: FieldArgs) {
+                //       console.log($parent);
+                //       $parent.set(name, fieldArgs.get());
+                //     },
+                //   [name],
+                // ),
               }),
             );
           }
 
-          for (const { name, connectorInputFieldType } of reverseTypes) {
+          for (const {
+            name,
+            connectorInputFieldType,
+            relationship,
+            relationName,
+            table,
+          } of reverseTypes) {
+            if (!connectorInputFieldType) {
+              throw new Error(
+                `connectorInputFieldType missing for ${relationName}`,
+              );
+            }
+            if (!name) {
+              throw new Error(
+                `fieldName missing for ${connectorInputFieldType}`,
+              );
+            }
+            const inputType = build.getInputTypeByName(
+              connectorInputFieldType,
+            ) as GraphQLInputObjectType;
+
             nestedFields[name] = fieldWithHooks(
               {
                 fieldName: name,
+                isNestedMutationInputField: true,
+                isNestedInverseMutation: true,
               },
               () => ({
-                type: build.getInputTypeByName(connectorInputFieldType),
+                type: inputType,
+                applyPlan: EXPORTABLE(
+                  (name) =>
+                    function ($parent, fieldArgs: FieldArgs) {
+                      console.log('DOWN SOUTH', name);
+                      return $parent;
+                    },
+                  [name],
+                ),
               }),
             );
           }
+          fields = extend(
+            fields,
+            { ...nestedFields },
+            `Adding nested fields for ${Self.name}`,
+          );
         }
-
-        fields = extend(
-          fields,
-          { ...nestedFields },
-          `Adding nested fields for ${Self.name}`,
-        );
         return fields;
       },
     },

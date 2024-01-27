@@ -1,6 +1,6 @@
 import { PgResource } from '@dataplan/pg';
 import { GraphileConfig } from 'graphile-build';
-import { PgTableResource } from '../interfaces';
+import { isPgTableResource } from './helpers';
 
 export const PostGraphileNestedConnectorsPlugin: GraphileConfig.Plugin = {
   name: 'postgraphile_nested_connectors_plugin',
@@ -62,28 +62,27 @@ export const PostGraphileNestedConnectorsPlugin: GraphileConfig.Plugin = {
   schema: {
     hooks: {
       build(build) {
-        build.pgNestedConnectorFields = {};
+        build.pgNestedTableConnectorFields = {};
         return build;
       },
+
       init(init, build, context) {
         const {
           inflection,
           getGraphQLTypeByPgCodec,
-          pgNestedConnectorFields,
+          pgNestedTableConnectorFields,
           graphql: { GraphQLNonNull, GraphQLID },
         } = build;
 
         const pgResources = build.input.pgRegistry.pgResources ?? {};
 
-        const tables = Object.values(pgResources);
-
-        for (const table of tables) {
+        for (const table of Object.values(pgResources)) {
           if (!isPgTableResource(table)) {
             continue;
           }
 
           const tableFieldName = inflection.tableFieldName(table);
-          pgNestedConnectorFields[table.name] = [];
+          pgNestedTableConnectorFields[table.name] = [];
 
           for (const [relationName, relationship] of Object.entries(
             table.getRelations(),
@@ -114,7 +113,8 @@ export const PostGraphileNestedConnectorsPlugin: GraphileConfig.Plugin = {
               relationName,
             });
 
-            const exists = pgNestedConnectorFields[table.name]?.find(
+            // deduplication to avoid errors
+            const exists = pgNestedTableConnectorFields[table.name]?.find(
               (o) => o.typeName === typeName,
             );
 
@@ -123,7 +123,7 @@ export const PostGraphileNestedConnectorsPlugin: GraphileConfig.Plugin = {
                 typeName,
                 {
                   isNestedMutationInputType: true,
-                  isNestedMutationConnectInputType: true,
+                  isNestedMutationConnectByKeyType: true,
                 },
                 () => ({
                   description: `The fields on \`${tableFieldName}\` to look up the row to connect.`,
@@ -160,7 +160,7 @@ export const PostGraphileNestedConnectorsPlugin: GraphileConfig.Plugin = {
               );
             }
 
-            pgNestedConnectorFields[table.name]!.push({
+            pgNestedTableConnectorFields[table.name]!.push({
               fieldName: inflection.nestedConnectByKeyFieldName({
                 table,
                 relationship,
@@ -180,7 +180,7 @@ export const PostGraphileNestedConnectorsPlugin: GraphileConfig.Plugin = {
                 relationName,
               });
 
-              const exists = pgNestedConnectorFields[table.name]?.find(
+              const exists = pgNestedTableConnectorFields[table.name]?.find(
                 (o) => o.typeName === nodeTypeName,
               );
 
@@ -189,7 +189,6 @@ export const PostGraphileNestedConnectorsPlugin: GraphileConfig.Plugin = {
                   nodeTypeName,
                   {
                     isNestedMutationInputType: true,
-                    isNestedMutationConnectInputType: true,
                     isNestedMutationConnectByNodeIdType: true,
                   },
                   () => ({
@@ -210,7 +209,7 @@ export const PostGraphileNestedConnectorsPlugin: GraphileConfig.Plugin = {
                   `Adding connect by nodeId input type for ${table.name}`,
                 );
 
-                pgNestedConnectorFields[table.name]!.push({
+                pgNestedTableConnectorFields[table.name]!.push({
                   fieldName: inflection.nestedConnectByNodeIdFieldName(),
                   typeName,
                   isNodeIdConnector: true,
@@ -226,7 +225,3 @@ export const PostGraphileNestedConnectorsPlugin: GraphileConfig.Plugin = {
     },
   },
 };
-
-export function isPgTableResource(r: PgResource): r is PgTableResource {
-  return !!r.codec.attributes && !r.parameters;
-}
