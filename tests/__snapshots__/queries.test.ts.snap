@@ -13,6 +13,17 @@ exports[`a query=test.graphql 1`] = `
               },
               "id": "WyJDaGlsZCIsMl0=",
               "momParent": null,
+              "name": "child 1 of test f1",
+            },
+          ],
+        },
+        "childrenByMomParentId": {
+          "nodes": [
+            {
+              "id": "WyJDaGlsZCIsM10=",
+              "momParent": {
+                "id": "WyJQYXJlbnQiLDNd",
+              },
               "name": "child 2 of test f1",
             },
           ],
@@ -32,16 +43,16 @@ exports[`b query=test.graphql 1`] = `
       "job": {
         "id": "WyJKb2IiLDFd",
         "jobRelationshipsByFromJobId": {
+          "nodes": [],
+        },
+        "jobRelationshipsByToJobId": {
           "nodes": [
             {
-              "fromJobId": 1,
-              "toJobId": null,
+              "fromJobId": null,
+              "toJobId": 1,
               "type": "test",
             },
           ],
-        },
-        "jobRelationshipsByToJobId": {
-          "nodes": [],
         },
       },
     },

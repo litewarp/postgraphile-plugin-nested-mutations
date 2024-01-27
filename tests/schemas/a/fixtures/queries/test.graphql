@@ -15,6 +15,15 @@ mutation {
     parent {
       id
       name
+      childrenByMomParentId {
+        nodes {
+          id
+          name
+          momParent {
+            id
+          }
+        }
+      }
       childrenByDadParentId {
         nodes {
           id

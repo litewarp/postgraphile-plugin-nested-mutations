@@ -2,21 +2,15 @@ import { GraphileConfig } from 'graphile-build';
 import { isPgTableResource } from './helpers';
 import {
   ExecutableStep,
-  ListStep,
+  FieldArgs,
+  GrafastInputFieldConfigMap,
   ObjectStep,
   __InputListStep,
   __InputObjectStep,
-  access,
-  applyTransforms,
   each,
-  first,
-  lambda,
-  object,
-  setter,
 } from 'grafast';
 
 import { getNestedMutationRelationships } from './get-nested-relationships';
-import { PgNestedMutationRelationship } from '../interfaces';
 import {
   PgInsertSingleStep,
   PgUpdateSingleStep,
@@ -32,16 +26,28 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
   inflection: {
     add: {
       nestedConnectorFieldType(options, details) {
+        const {
+          isReverse,
+          leftTable,
+          localAttributes,
+          remoteAttributes,
+          rightTable,
+        } = details;
         // name for the Input Object
         // e.g., SessionUserIdFkeyInput for user object in SessionInput
         // e.g., SessionUserIdFkeyInverseInput for session object in UserInput
-        const { isReverse, leftTable, localAttributes } = details;
+
+        // If leftTable contains foreign key
+        // leftTableType + leftTable_attributes + Fkey + Input
+
+        // if righTable contains foreign key
+        // rightTable + rightTable_attributes + Fkey + input
 
         return this.upperCamelCase(
           [
-            this.tableFieldName(leftTable),
-            localAttributes,
-            'fkey',
+            this.tableFieldName(isReverse ? rightTable : leftTable),
+            [...(isReverse ? remoteAttributes : localAttributes)],
+            'fKey',
             isReverse ? 'inverse' : null,
             'input',
           ]
@@ -50,18 +56,23 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
         );
       },
       nestedCreateInputType(options, details) {
-        // name for the create input type
-        // e.g., SessionUserIdFkeyUserCreateInput
-        // e.g., SessionUserIdFkeySessionCreateInput
+        // Same as fieldType except no 'inverse' and then add rightTableName + 'create'
 
-        const { leftTable, rightTable, localAttributes } = details;
+        const {
+          leftTable,
+          rightTable,
+          localAttributes,
+          remoteAttributes,
+          isReverse,
+        } = details;
 
         return this.upperCamelCase(
           [
-            this.tableFieldName(leftTable),
-            localAttributes,
+            this.tableFieldName(isReverse ? rightTable : leftTable),
+            [...(isReverse ? remoteAttributes : localAttributes)],
             'fkey',
-            this.tableFieldName(rightTable),
+            this.tableFieldName(isReverse ? leftTable : rightTable),
+            'create',
             'input',
           ]
             .filter(Boolean)
@@ -124,17 +135,12 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
 
       init(init, build, context) {
         const {
-          graphql: {
-            GraphQLInputObjectType,
-            GraphQLObjectType,
-            GraphQLNonNull,
-            GraphQLList,
-            GraphQLID,
-          },
+          graphql: { GraphQLNonNull, GraphQLList, GraphQLID },
           inflection,
           EXPORTABLE,
         } = build;
 
+        const createdTypes = new Set<string>();
         for (const leftTable of Object.values(
           build.input.pgRegistry.pgResources,
         )) {
@@ -149,8 +155,6 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
             leftTable.codec,
             relationships,
           );
-
-          const createdTypes = new Set<string>();
 
           for (const relationship of relationships) {
             const createInputTypeName =
@@ -179,16 +183,14 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
                 codec: leftTable.codec,
               });
 
-            // register createType
-            build.recoverable(null, () => {
-              if (!createdTypes.has(createInputTypeName)) {
-                createdTypes.add(createInputTypeName);
-
+            if (!createdTypes.has(createInputTypeName)) {
+              createdTypes.add(createInputTypeName);
+              // register createType
+              build.recoverable(null, () => {
                 build.registerInputObjectType(
                   createInputTypeName,
                   {
                     isNestedInverseMutation: relationship.isReverse,
-                    isNestedMutationCreateInputType: true,
                     isNestedMutationInputType: true,
                   },
                   () => {
@@ -232,7 +234,6 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
                                 applyPlan: EXPORTABLE(
                                   (attributeName) =>
                                     function plan($parent, args) {
-                                      console.log(attributeName, $parent);
                                       $parent.set(attributeName, args.get());
                                     },
                                   [attributeName],
@@ -246,11 +247,13 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
                   },
                   ``,
                 );
-              }
+              });
+            }
 
-              // dedupe
-              if (!createdTypes.has(relationship.connectorTypeName)) {
-                createdTypes.add(relationship.connectorTypeName);
+            if (!createdTypes.has(relationship.connectorTypeName)) {
+              createdTypes.add(relationship.connectorTypeName);
+              build.recoverable(null, () => {
+                // dedupe
 
                 // register the connectType
                 build.registerInputObjectType(
@@ -282,6 +285,7 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
                           localAttributes,
                           remoteAttributes,
                           rightTable,
+                          connectorFieldName,
                         } = relationship;
 
                         return {
@@ -290,7 +294,7 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
                               fieldName,
                               isNestedMutationInputType: true,
                               isNestedMutationCreateInputType: true,
-                              isNestedInverseMutation: relationship.isReverse,
+                              pgCodec: leftTable.codec,
                             },
                             {
                               description: build.wrapDescription(
@@ -312,10 +316,12 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
                                   resource,
                                 ) =>
                                   function plan($parent, args) {
+                                    $parent.hasSideEffects = true;
                                     const isInsertOrUpdate =
                                       $parent instanceof PgInsertSingleStep ||
                                       $parent instanceof PgUpdateSingleStep;
 
+                                    console.log('IN CREATE FIELD', fieldName);
                                     if (isInsertOrUpdate) {
                                       if (isReverse) {
                                         // if the relation table contains the foreign keys
@@ -345,11 +351,6 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
                                         ).filter(
                                           (a) => !foreignKeys[a] && a !== 'id',
                                         );
-                                        console.log(
-                                          otherAttrs,
-                                          leftTable.name,
-                                          foreignKeys,
-                                        );
 
                                         const $list =
                                           args.getRaw() as __InputListStep;
@@ -365,20 +366,25 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
                                             i,
                                           ) as __InputObjectStep;
 
-                                          pgInsertSingle(resource, {
-                                            ...foreignKeys,
-                                            ...otherAttrs.reduce(
-                                              (memo, field) => {
-                                                return {
-                                                  ...memo,
-                                                  [field]: $dep.get(
-                                                    inflection.camelCase(field),
-                                                  ),
-                                                };
-                                              },
-                                              {},
-                                            ),
-                                          });
+                                          const $step = pgInsertSingle(
+                                            resource,
+                                            {
+                                              ...foreignKeys,
+                                              ...otherAttrs.reduce(
+                                                (memo, field) => {
+                                                  return {
+                                                    ...memo,
+                                                    [field]: $dep.get(
+                                                      inflection.camelCase(
+                                                        field,
+                                                      ),
+                                                    ),
+                                                  };
+                                                },
+                                                {},
+                                              ),
+                                            },
+                                          );
                                         }
                                       } else {
                                         // if the root table contains the foreign keys
@@ -402,8 +408,8 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
                   },
                   `PgNestedConnectorField for ${relationship.rightTable.name} in the ${relationship.leftTable.name} create or patch mutation`,
                 );
-              }
-            });
+              });
+            }
           }
         }
 
@@ -433,18 +439,36 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
           return field;
         }
 
-        const updatePaths = nestedMutationDetails.reduce((memo, rel) => {
-          const connectorPath = rel.connectorFieldName;
-          return rel.mutationFields.map((f) => [connectorPath, f]);
-        }, [] as string[][]);
+        const updatePaths = nestedMutationDetails.reduce(
+          (memo, rel) => {
+            const connectorPath = rel.connectorFieldName;
+            const pathTuples = rel.mutationFields.map(
+              (f) => [connectorPath, f] as [string, string],
+            );
+            return [...memo, ...pathTuples];
+          },
+          [] as Array<[string, string]>,
+        );
 
         return {
           ...field,
           plan(parent, args, info) {
             const previousPlan = field.plan!(parent, args, info);
             const inputPlan = previousPlan.get('result') as ObjectStep;
-            for (const paths of updatePaths) {
-              args.apply(inputPlan, ['input', fieldKey.field, ...paths]);
+            for (const [connectorField, action] of updatePaths) {
+              const rawObj = args.getRaw(['input', fieldKey.field]).eval();
+
+              // don't apply the path if the key is not present in the input
+              // object
+
+              if (rawObj[connectorField]) {
+                args.apply(inputPlan, [
+                  'input',
+                  fieldKey.field,
+                  connectorField,
+                  action,
+                ]);
+              }
             }
             return previousPlan;
           },
@@ -456,7 +480,7 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
 
         const {
           fieldWithHooks,
-          scope: { isPgRowType, pgCodec },
+          scope: { isPgRowType, pgCodec, isNestedMutationCreateInputType },
           Self,
         } = context;
 
@@ -467,23 +491,23 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
         ) {
           const data = build.pgNestedMutationRelationships.get(pgCodec) ?? [];
 
-          return data.reduce((memo, relationship) => {
-            return build.recoverable(memo, () => {
+          const addedFields = data.reduce(
+            (memo, relationship) => {
               const {
                 connectorTypeName,
                 connectorFieldName,
-                leftTable,
+                relationName,
                 rightTable,
-                localAttributes,
-                remoteAttributes,
-                isReverse,
               } = relationship;
+
               const type = build.getInputTypeByName(connectorTypeName);
+
               if (!type) {
                 return memo;
               }
 
-              const result = {
+              return {
+                ...memo,
                 [connectorFieldName]: fieldWithHooks(
                   {
                     fieldName: connectorFieldName,
@@ -498,47 +522,20 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
                     applyPlan: EXPORTABLE(
                       (fieldName) =>
                         function plan($parent, args) {
-                          const isInsertOrUpdate =
-                            $parent instanceof PgInsertSingleStep ||
-                            $parent instanceof PgUpdateSingleStep;
-
-                          if (isInsertOrUpdate) {
-                            if (isReverse) {
-                              // if the relation table contains the foreign keys
-                              // i.e., isReverse = true
-                              // get the referenced key on the root table
-                              // add it to the payload for the nested create
-                              const keySteps = localAttributes.reduce(
-                                (memo, attr, index) => {
-                                  const remoteAttr = remoteAttributes[index];
-                                  if (!remoteAttr) return memo;
-                                  return {
-                                    ...memo,
-                                    [inflection.camelCase(remoteAttr)]:
-                                      $parent.get(attr),
-                                  };
-                                },
-                                {} as Record<string, ExecutableStep>,
-                              );
-                            } else {
-                              // if the root table contains the foreign keys
-                              // create the new object and then update the root
-                            }
-                          }
+                          console.log(connectorFieldName);
+                          // const arg = args.getRaw() as __InputObjectStep;
+                          // console.log(relationName, arg.eval());
                         },
                       [connectorFieldName],
                     ),
                   },
                 ),
               };
+            },
+            {} as GrafastInputFieldConfigMap<any, any>,
+          );
 
-              return build.extend(
-                memo,
-                result,
-                `Adding connector field for ${connectorTypeName} on input or patch for ${leftTable.name}`,
-              );
-            });
-          }, fields);
+          return build.extend(fields, addedFields, 'test');
         }
 
         return fields;
