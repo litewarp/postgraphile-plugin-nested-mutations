@@ -1,0 +1,21 @@
+mutation AddParentFromChild {
+  createChild(
+    input: {
+      child: {
+        name: "Me first but what about required constraints"
+        parentToDadParentId: { create: { name: "my father this of thee" } }
+      }
+    }
+  ) {
+    child {
+      id
+      name
+      dadParent {
+        id
+      }
+      momParent {
+        id
+      }
+    }
+  }
+}

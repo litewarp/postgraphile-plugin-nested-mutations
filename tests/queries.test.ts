@@ -9,7 +9,6 @@ import { hookArgs, execute } from 'grafast';
 import type { ExecutionArgs } from 'graphql';
 import { parse, validate } from 'graphql';
 import { PgSimplifyInflectionPreset } from '@graphile/simplify-inflection';
-import { PostGraphileRelayPreset } from 'postgraphile/presets/relay';
 import type { Pool } from 'pg';
 import { makeWithPgClientViaPgClientAlreadyInTransaction } from 'postgraphile/adaptors/pg';
 import { NestedMutationPreset } from '../src';

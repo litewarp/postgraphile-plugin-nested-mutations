@@ -1,5 +1,20 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
+exports[`a query=inverse-create.graphql 1`] = `
+{
+  "data": {
+    "createChild": {
+      "child": {
+        "dadParent": null,
+        "id": "WyJDaGlsZCIsMl0=",
+        "momParent": null,
+        "name": "Me first but what about required constraints",
+      },
+    },
+  },
+}
+`;
+
 exports[`a query=test.graphql 1`] = `
 {
   "data": {
