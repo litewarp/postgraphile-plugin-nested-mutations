@@ -1,17 +1,16 @@
 import type {
-  PgResource,
-  PgResourceUnique,
-  PgRegistry,
-  PgCodecWithAttributes,
   PgCodec,
   PgCodecAttribute,
+  PgCodecAttributes,
+  PgResourceUnique,
 } from '@dataplan/pg';
 import { PgTableResource } from '@graphile-contrib/pg-many-to-many';
 import type {} from 'postgraphile';
+import { pgNestedMutationFields } from './type-definitions/get-nested-relationships';
 
 export type PgNestedConnectorsInflectionFn = (
   this: GraphileBuild.Inflection,
-  details: PgNestedMutationRelationship,
+  details: Omit<PgNestedMutationRelationship, 'mutationFields'>,
 ) => string;
 
 export type PgTableRelationship = ReturnType<
@@ -22,32 +21,29 @@ export type BuildInputObjectArguments = Parameters<
   GraphileBuild.Build['registerInputObjectType']
 >;
 
-export interface PgNestedMutationDetails {
-  name?: string;
-  connectorInputFieldType?: string;
-  relationName: string;
-  table: PgTableResource;
-  relationship: PgTableRelationship;
+export interface PgNestedUniqueAttributeCodecs<
+  TAttributes extends PgCodecAttributes = PgCodecAttributes,
+> extends PgResourceUnique<TAttributes> {
+  isNodeId?: boolean;
+  codecs: Record<string, PgCodecAttribute>;
 }
 
-interface PgNestedTableConnectorField {
-  fieldName: string;
-  unique?: PgResourceUnique;
+export type PgNestedMutationFieldNames =
+  (typeof pgNestedMutationFields)[number];
+
+export interface PgNestedMutationFieldDetails {
   typeName: string;
-  isNodeIdConnector?: boolean;
-  relationship: PgTableRelationship;
+  fieldName: string;
 }
 
-export interface PgNestedMutationBehaviors {
-  insertable?: boolean;
-  connectable?: boolean;
-  updatable?: boolean;
-  deletable?: boolean;
+export interface PgNestedTableMutationFields {
+  input: PgNestedMutationFieldDetails;
+  create?: PgNestedMutationFieldDetails;
+  connectByKeys?: PgNestedMutationFieldDetails[];
+  connectByNodeId?: PgNestedMutationFieldDetails;
 }
 
 export interface PgNestedMutationRelationship {
-  connectorFieldName: string;
-  connectorTypeName: string;
   leftTable: PgTableResource;
   rightTable: PgTableResource;
   relationName: string;
@@ -55,9 +51,10 @@ export interface PgNestedMutationRelationship {
   isUnique?: boolean;
   localAttributes: readonly string[];
   remoteAttributes: readonly string[];
-  localCodec: PgCodecWithAttributes;
-  remoteCodecs: Record<string, PgCodecAttribute>;
-  mutationFields: string[];
+  localUnique: PgNestedUniqueAttributeCodecs;
+  remoteUnique: PgNestedUniqueAttributeCodecs;
+  mutationFields: PgNestedTableMutationFields;
+  tableFieldName: string;
 }
 
 declare global {
@@ -84,32 +81,10 @@ declare global {
       >;
 
       //
-
-      /**
-       * Old
-       */
-      pgNestedPluginFieldMap: Map<
-        string,
-        { fieldNames: string[]; tableName: string }
-      >;
-      pgNestedPluginForwardInputTypes: Record<
-        string,
-        PgNestedMutationDetails[]
-      >;
-      pgNestedPluginReverseInputTypes: Record<
-        string,
-        PgNestedMutationDetails[]
-      >;
-      pgNestedTableConnectorFields: Record<
-        string,
-        PgNestedTableConnectorField[]
-      >;
-      pgNestedTableDeleterFields: Record<string, PgNestedMutationDetails[]>;
-      pgNestedTableUpdaterFields: Record<string, PgNestedMutationDetails[]>;
     }
     interface Inflection {
       nestedConnectByNodeIdInputType: PgNestedConnectorsInflectionFn;
-      nestedConnectByNodeIdFieldName: () => string;
+      nestedConnectByNodeIdFieldName: PgNestedConnectorsInflectionFn;
       nestedConnectByKeyInputType: PgNestedConnectorsInflectionFn;
       nestedConnectByKeyFieldName: PgNestedConnectorsInflectionFn;
       nestedCreateInputType: PgNestedConnectorsInflectionFn;

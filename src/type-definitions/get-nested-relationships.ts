@@ -1,5 +1,15 @@
 import { PgTableResource } from '@graphile-contrib/pg-many-to-many';
-import { PgNestedMutationRelationship } from '../interfaces';
+import {
+  PgNestedMutationRelationship,
+  PgNestedTableMutationFields,
+} from '../interfaces';
+
+export const pgNestedMutationFields = [
+  'input',
+  'create',
+  'connectByKeys',
+  'connectByNodeId',
+] as const;
 
 export function getNestedMutationRelationships(
   leftTable: PgTableResource,
@@ -15,7 +25,6 @@ export function getNestedMutationRelationships(
         isReferencee,
         remoteAttributes,
         isUnique,
-        localCodec,
       } = relationDetails;
 
       const rightTable: PgTableResource = remoteResource;
@@ -25,39 +34,87 @@ export function getNestedMutationRelationships(
         return memoLeft;
       }
 
-      const remoteUniq = rightTable.uniques.find((u) =>
+      const localUnique = leftTable.uniques.find((u) =>
+        u.attributes.every((a) => localAttributes.includes(a)),
+      );
+
+      const remoteUnique = rightTable.uniques.find((u) =>
         u.attributes.every((a) => remoteAttributes.includes(a)),
       );
 
-      const remoteCodecs = Object.entries(rightTable.codec.attributes).reduce(
+      const localCodecs = Object.entries(leftTable.codec.attributes).reduce(
         (memoCodec, [k, v]) =>
-          remoteUniq?.attributes.includes(k)
+          localUnique?.attributes.includes(k)
             ? { ...memoCodec, [k]: v }
             : memoCodec,
         {},
       );
 
-      const obj = {
-        leftTable,
-        rightTable,
-        relationName,
-        isUnique,
-        localCodec,
-        isReverse,
-        localAttributes,
-        remoteAttributes,
-        remoteCodecs,
-        mutationFields: ['create'],
-        connectorFieldName: '',
-        connectorTypeName: '',
+      const remoteCodecs = Object.entries(rightTable.codec.attributes).reduce(
+        (memoCodec, [k, v]) =>
+          remoteUnique?.attributes.includes(k)
+            ? { ...memoCodec, [k]: v }
+            : memoCodec,
+        {},
+      );
+
+      const relationship: Omit<PgNestedMutationRelationship, 'mutationFields'> =
+        {
+          leftTable,
+          rightTable,
+          relationName,
+          isUnique,
+          localUnique: {
+            ...localUnique,
+            attributes: [...(localUnique?.attributes ?? [])],
+            codecs: localCodecs,
+          },
+          remoteUnique: {
+            ...remoteUnique,
+            attributes: [...(remoteUnique?.attributes ?? [])],
+            codecs: remoteCodecs,
+          },
+          isReverse,
+          localAttributes,
+          remoteAttributes,
+          tableFieldName: inflection.tableFieldName(leftTable),
+        };
+
+      const mutationFields: PgNestedTableMutationFields = {
+        /**
+         * Type that gets added to the relation's input type
+         */
+        input: {
+          fieldName: inflection.nestedConnectorFieldName(relationship),
+          typeName: inflection.nestedConnectorFieldType(relationship),
+        },
+
+        /**
+         * TYpe that
+         */
+        create: {
+          fieldName: 'create',
+          typeName: inflection.nestedCreateInputType(relationship),
+        },
+
+        // to do - perform check to see whether to add these fields
+        connectByKeys: [
+          {
+            fieldName: inflection.nestedConnectByKeyFieldName(relationship),
+            typeName: inflection.nestedConnectByKeyInputType(relationship),
+          },
+        ],
+        connectByNodeId: {
+          fieldName: inflection.nestedConnectByNodeIdFieldName(relationship),
+          typeName: inflection.nestedConnectByNodeIdInputType(relationship),
+        },
       };
 
       return [
         ...memoLeft,
         {
-          ...obj,
-          connectorFieldName: inflection.nestedConnectorFieldName(obj),
-          connectorTypeName: inflection.nestedConnectorFieldType(obj),
+          ...relationship,
+          mutationFields,
         },
       ];
     },

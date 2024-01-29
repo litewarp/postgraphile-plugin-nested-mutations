@@ -5,7 +5,9 @@ exports[`a query=inverse-create.graphql 1`] = `
   "data": {
     "createChild": {
       "child": {
-        "dadParent": null,
+        "dadParent": {
+          "id": "WyJQYXJlbnQiLDNd",
+        },
         "id": "WyJDaGlsZCIsMl0=",
         "momParent": null,
         "name": "Me first but what about required constraints",

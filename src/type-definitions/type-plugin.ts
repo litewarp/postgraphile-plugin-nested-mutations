@@ -16,10 +16,10 @@ import {
 } from '@dataplan/pg';
 
 export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
-  name: 'post_graphile_nested_types_plugin',
+  name: 'pg-nested-mutation-types-plugin',
   description: 'PostGraphile plugin for nested types',
   version: '0.0.1',
-  after: ['PostGraphileNestedConnectorsPlugin'],
+  after: [],
 
   inflection: {
     add: {

@@ -20,7 +20,8 @@
   "scripts": {
     "build": "tsup",
     "lint": "eslint src/**/*.ts",
-    "test": "env-cmd scripts/test --watch"
+    "test": "env-cmd scripts/test --watch",
+    "typecheck": "tsc --noEmit --watch"
   },
   "prettier": "@vercel/style-guide/prettier",
   "devDependencies": {
