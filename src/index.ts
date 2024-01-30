@@ -1,7 +1,14 @@
 import type { GraphileConfig } from 'graphile-build';
-// import { PostGraphileNestedConnectorsPlugin } from './type-definitions/connect-plugin';
-import { PostGraphileNestedTypesPlugin } from './type-definitions/type-deux-plugin';
+import {
+  PostGraphileNestedTypesPlugin,
+  PostGraphileNestedMutationsConnectPlugin,
+  PostGraphileNestedMutationsCreatePlugin,
+} from './plugins';
 
 export const NestedMutationPreset: GraphileConfig.Preset = {
-  plugins: [PostGraphileNestedTypesPlugin],
+  plugins: [
+    PostGraphileNestedMutationsConnectPlugin,
+    PostGraphileNestedMutationsCreatePlugin,
+    PostGraphileNestedTypesPlugin,
+  ],
 };

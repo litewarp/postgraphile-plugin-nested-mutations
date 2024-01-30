@@ -80,6 +80,11 @@ declare global {
         PgNestedMutationRelationship[]
       >;
 
+      /**
+       * Store of types created to deduplicate
+       */
+      pgNestedMutationInputTypes: Set<string>;
+
       // returns the field in the input object
       // should be tablename for insert
       // patch for patch
@@ -95,6 +100,7 @@ declare global {
       nestedConnectByNodeIdFieldName: PgNestedConnectorsInflectionFn;
       nestedConnectByKeyInputType: PgNestedConnectorsInflectionFn;
       nestedConnectByKeyFieldName: PgNestedConnectorsInflectionFn;
+      nestedCreateFieldName: PgNestedConnectorsInflectionFn;
       nestedCreateInputType: PgNestedConnectorsInflectionFn;
       nestedConnectorFieldType: PgNestedConnectorsInflectionFn;
       nestedConnectorFieldName: PgNestedConnectorsInflectionFn;

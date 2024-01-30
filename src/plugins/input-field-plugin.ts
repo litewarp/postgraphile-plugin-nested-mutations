@@ -1,53 +1,24 @@
 import { GraphileConfig } from 'graphile-build';
-import { isPgTableResource } from './helpers';
+import { isPgTableResource } from '../helpers';
 import {
   GrafastInputFieldConfigMap,
   ObjectStep,
   __InputListStep,
   __InputObjectStep,
 } from 'grafast';
-import { getNestedMutationRelationships } from './get-nested-relationships';
-import { buildCreateField } from './build-create-field';
-import { buildCreateInputType } from './build-create-type';
-import { buildConnectByNodeIdType } from './build-connect-by-node-id-type';
-import { buildConnectByNodeIdField } from './build-connect-by-node-id-field';
+import { buildCreateField } from '../type-definitions/build-create-field';
+import { buildConnectByNodeIdField } from '../type-definitions/build-connect-by-node-id-field';
 
 export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
-  name: 'pg-nested-mutation-plugin',
-  description: 'PostGraphile plugin for nested types',
-  version: '0.0.1',
-  after: ['PgTableNodePlugin'],
+  name: 'PgNestedMutationTypesPlugin',
+  description:
+    'Builds and adds nested mutation input field with plans to parent object',
+  /* eslint-disable-next-line @typescript-eslint/no-var-requires */
+  version: require('../../package.json').version,
+  after: ['PgNestedMutationConnectPlugin'],
 
   inflection: {
     add: {
-      nestedConnectByNodeIdFieldName(options) {
-        return this.camelCase(`connect_by_${this.nodeIdFieldName()}`);
-      },
-      nestedConnectByNodeIdInputType(options, { rightTable }) {
-        const rightTableFieldName = this.tableFieldName(rightTable);
-        return this.upperCamelCase(`${rightTableFieldName}_node_id_connect`);
-      },
-      nestedConnectByKeyInputType(options, relationship) {
-        // to do - allow overriding of names through tags
-        const { leftTable, localUnique, tableFieldName } = relationship;
-
-        const attributes = localUnique.attributes.map((attributeName) =>
-          this.attribute({ attributeName, codec: leftTable.codec }),
-        );
-
-        const keyName = localUnique.isPrimary ? 'pk' : attributes.join('_');
-
-        return this.upperCamelCase(`${tableFieldName}_${keyName}_connect`);
-      },
-      nestedConnectByKeyFieldName(options, relationship) {
-        const { leftTable, localUnique } = relationship;
-
-        const attributes = localUnique.attributes.map((attributeName) =>
-          this.attribute({ attributeName, codec: leftTable.codec }),
-        );
-
-        return this.camelCase(`connect_by_${attributes.join('_and_')}`);
-      },
       nestedConnectorFieldType(options, details) {
         const {
           isReverse,
@@ -72,30 +43,6 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
             [...(isReverse ? remoteAttributes : localAttributes)],
             'fKey',
             isReverse ? 'inverse' : null,
-            'input',
-          ]
-            .filter(Boolean)
-            .join('_'),
-        );
-      },
-      nestedCreateInputType(options, details) {
-        // Same as fieldType except no 'inverse' and then add rightTableName + 'create'
-
-        const {
-          leftTable,
-          rightTable,
-          localAttributes,
-          remoteAttributes,
-          isReverse,
-        } = details;
-
-        return this.upperCamelCase(
-          [
-            this.tableFieldName(isReverse ? rightTable : leftTable),
-            [...(isReverse ? remoteAttributes : localAttributes)],
-            'fkey',
-            this.tableFieldName(isReverse ? leftTable : rightTable),
-            'create',
             'input',
           ]
             .filter(Boolean)
@@ -158,18 +105,22 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
 
       init(init, build, context) {
         const {
+          pgNestedMutationInputObjMap,
+          pgNestedMutationRelationships,
+          pgNestedMutationInputTypes,
           graphql: { GraphQLNonNull, GraphQLList, GraphQLID },
           inflection,
           EXPORTABLE,
         } = build;
 
-        const createdTypes = new Set<string>();
-        for (const table of Object.values(build.input.pgRegistry.pgResources)) {
-          if (!isPgTableResource(table)) {
+        const resources = build.input.pgRegistry.pgResources;
+
+        for (const resource of Object.values(resources)) {
+          if (!isPgTableResource(resource)) {
             continue;
           }
-          const relationships = getNestedMutationRelationships(table, build);
-          build.pgNestedMutationRelationships.set(table.codec, relationships);
+          const relationships =
+            pgNestedMutationRelationships.get(resource.codec) ?? [];
 
           for (const relationship of relationships) {
             const { leftTable, mutationFields, localUnique, tableFieldName } =
@@ -195,63 +146,28 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
               );
 
             /**
-             * If Create Enabled, Generate a CreateInput Type
-             */
-            if (
-              mutationFields.create &&
-              !createdTypes.has(mutationFields.create.typeName)
-            ) {
-              createdTypes.add(mutationFields.create.typeName);
-
-              // register createType
-              build.recoverable(null, () => {
-                buildCreateInputType(relationship, build);
-              });
-            }
-
-            // if connectbyNodeId types, create them
-            if (
-              mutationFields.connectByNodeId &&
-              !createdTypes.has(mutationFields.connectByNodeId.typeName)
-            ) {
-              createdTypes.add(mutationFields.connectByNodeId.typeName);
-
-              build.recoverable(null, () => {
-                buildConnectByNodeIdType(relationship, build);
-              });
-            }
-
-            // if connect by key types, create them
-            if (mutationFields.connectByKeys) {
-              const { connectByKeys } = mutationFields;
-
-              for (const connectByKey of connectByKeys) {
-                if (!createdTypes.has(connectByKey.typeName)) {
-                  createdTypes.add(connectByKey.typeName);
-                }
-              }
-            }
-            /**
              * Add the Connector Input Field
              * if there is at least one nestedField
              */
-            if (
-              Object.keys(mutationFields).filter((k) => k !== 'input').length &&
-              !createdTypes.has(mutationFields.input.typeName)
-            ) {
-              const { input } = mutationFields;
-              createdTypes.add(input.typeName);
 
-              build.recoverable(null, () => {
-                // register the connectType
-                build.registerInputObjectType(
-                  input.typeName,
-                  {
-                    isNestedInverseMutation: relationship.isReverse,
-                    isNestedMutationConnectorType: true,
-                  },
-                  () => {
-                    return {
+            const hasNestedFields =
+              Object.keys(mutationFields).filter((k) => k !== 'input').length >
+              0;
+
+            // register the connectType
+            if (hasNestedFields) {
+              const { input } = mutationFields;
+              if (!pgNestedMutationInputTypes.has(input.typeName)) {
+                pgNestedMutationInputTypes.add(input.typeName);
+
+                build.recoverable(null, () => {
+                  build.registerInputObjectType(
+                    mutationFields.input.typeName,
+                    {
+                      isNestedInverseMutation: relationship.isReverse,
+                      isNestedMutationConnectorType: true,
+                    },
+                    () => ({
                       description: build.wrapDescription(
                         `Input for the nested mutation of \`${relationship.leftTable.name}\` `,
                         'type',
@@ -276,11 +192,11 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
                             }
                           : {}),
                       }),
-                    };
-                  },
-                  `PgNestedConnectorField for ${relationship.rightTable.name} in the ${relationship.leftTable.name} create or patch mutation`,
-                );
-              });
+                    }),
+                    `PgNestedConnectorField for ${relationship.rightTable.name} in the ${relationship.leftTable.name} create or patch mutation`,
+                  );
+                });
+              }
             }
           }
         }

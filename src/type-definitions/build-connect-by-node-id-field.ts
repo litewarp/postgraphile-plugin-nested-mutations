@@ -1,6 +1,12 @@
-import { __InputObjectStep, constant, node, specFromNodeId } from 'grafast';
+import {
+  __InputListStep,
+  __InputObjectStep,
+  constant,
+  node,
+  specFromNodeId,
+} from 'grafast';
 import { PgNestedMutationRelationship } from '../interfaces';
-import { isInsertOrUpdate } from './create-helpers';
+import { isInsertOrUpdate } from '../helpers';
 import { pgUpdateSingle } from '@dataplan/pg';
 
 export function buildConnectByNodeIdField(
@@ -70,26 +76,44 @@ export function buildConnectByNodeIdField(
           function plan($parent, args, info) {
             if (isInsertOrUpdate($parent)) {
               if (isReverse) {
-                const $inputObj = args.getRaw() as __InputObjectStep;
+                const $inputObj = args.getRaw() as
+                  | __InputObjectStep
+                  | __InputListStep;
 
-                // extract the ids to connect by from the input object
-                // can't use args.get('id') because it's an array
-                const inputs = Object.entries($inputObj.eval() ?? {}).reduce(
-                  (m, [k, v]) => {
-                    if (v) {
-                      const id = Object.entries(v).find(
-                        ([k, v]) => k === nodeIdFieldName,
-                      )?.[1];
-                      return id ? [...m, id] : m;
-                    }
-                    return m;
-                  },
-                  [] as string[],
-                );
+                if ($inputObj instanceof __InputListStep) {
+                  // extract the ids to connect by from the input object
+                  // can't use args.get('id') because it's an array
+                  const inputs = Object.entries($inputObj.eval() ?? {}).reduce(
+                    (m, [k, v]) => {
+                      if (v) {
+                        const id = Object.entries(v).find(
+                          ([k, v]) => k === nodeIdFieldName,
+                        )?.[1];
+                        return id ? [...m, id as string] : m;
+                      }
+                      return m;
+                    },
+                    [] as string[],
+                  );
+                  for (const id of inputs) {
+                    const spec = specFromNodeId(rightHandler, constant(id));
 
-                for (const id of inputs) {
-                  const spec = specFromNodeId(rightHandler, constant(id));
-
+                    pgUpdateSingle(rightTable, spec, {
+                      ...localAttributes.reduce((m, local, i) => {
+                        const remote = remoteAttributes[i];
+                        if (local && remote) {
+                          return {
+                            ...m,
+                            [remote]: $parent.get(local),
+                          };
+                        }
+                        return m;
+                      }, {}),
+                    });
+                  }
+                } else {
+                  const $id = $inputObj.get(nodeIdFieldName);
+                  const spec = specFromNodeId(rightHandler, $id);
                   pgUpdateSingle(rightTable, spec, {
                     ...localAttributes.reduce((m, local, i) => {
                       const remote = remoteAttributes[i];

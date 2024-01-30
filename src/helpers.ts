@@ -1,5 +1,10 @@
-import { PgResource } from '@dataplan/pg';
+import {
+  PgInsertSingleStep,
+  PgResource,
+  PgUpdateSingleStep,
+} from '@dataplan/pg';
 import { PgTableResource } from '@graphile-contrib/pg-many-to-many';
+import { ExecutableStep } from 'grafast';
 
 export function isPgTableResource(r: PgResource): r is PgTableResource {
   return Boolean(r.codec.attributes) && !r.parameters;
@@ -57,3 +62,11 @@ export const getCRUDBehavior = (
     deletable: isDeletable(build, resource),
   };
 };
+
+export function isInsertOrUpdate(
+  $step: ExecutableStep,
+): $step is PgInsertSingleStep | PgUpdateSingleStep {
+  return (
+    $step instanceof PgInsertSingleStep || $step instanceof PgUpdateSingleStep
+  );
+}

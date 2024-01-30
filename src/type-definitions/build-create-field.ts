@@ -1,6 +1,6 @@
 import { GraphileBuild } from 'graphile-build';
 import { PgNestedMutationRelationship } from '../interfaces';
-import { isInsertOrUpdate } from './create-helpers';
+import { isInsertOrUpdate } from '../helpers';
 import { ExecutableStep, __InputListStep, __InputObjectStep } from 'grafast';
 import { pgInsertSingle } from '@dataplan/pg';
 

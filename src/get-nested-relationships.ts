@@ -11,7 +11,7 @@ export const pgNestedMutationFields = [
   'connectByNodeId',
 ] as const;
 
-export function getNestedMutationRelationships(
+export function getNestedRelationships(
   leftTable: PgTableResource,
   build: GraphileBuild.Build,
 ): PgNestedMutationRelationship[] {
