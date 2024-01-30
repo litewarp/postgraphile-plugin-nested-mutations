@@ -3,13 +3,20 @@
 exports[`a query=forward-connect-by-id.graphql 1`] = `
 {
   "data": {
-    "createChild": {
-      "child": {
-        "dadParent": {
-          "id": "WyJQYXJlbnQiLDJd",
+    "createParent": {
+      "parent": {
+        "childrenByDadParentId": {
+          "edges": [
+            {
+              "node": {
+                "id": "WyJDaGlsZCIsMl0=",
+                "name": "child 2",
+              },
+            },
+          ],
         },
-        "id": "WyJDaGlsZCIsMl0=",
-        "name": "My baby",
+        "id": "WyJQYXJlbnQiLDNd",
+        "name": "Daddy-O",
       },
     },
   },
@@ -27,7 +34,7 @@ exports[`a query=forward-create.graphql 1`] = `
               "dadParent": {
                 "id": "WyJQYXJlbnQiLDNd",
               },
-              "id": "WyJDaGlsZCIsMl0=",
+              "id": "WyJDaGlsZCIsM10=",
               "momParent": null,
               "name": "child 1 of test f1",
             },
@@ -36,7 +43,7 @@ exports[`a query=forward-create.graphql 1`] = `
         "childrenByMomParentId": {
           "nodes": [
             {
-              "id": "WyJDaGlsZCIsM10=",
+              "id": "WyJDaGlsZCIsNF0=",
               "momParent": {
                 "id": "WyJQYXJlbnQiLDNd",
               },
@@ -52,7 +59,24 @@ exports[`a query=forward-create.graphql 1`] = `
 }
 `;
 
-exports[`a query=inverse-create.graphql 1`] = `
+exports[`a query=reverse-connect-by-id.graphql 1`] = `
+{
+  "data": {
+    "createChild": {
+      "child": {
+        "dadParent": {
+          "id": "WyJQYXJlbnQiLDJd",
+          "name": "dad",
+        },
+        "id": "WyJDaGlsZCIsM10=",
+        "name": "My baby",
+      },
+    },
+  },
+}
+`;
+
+exports[`a query=reverse-create.graphql 1`] = `
 {
   "data": {
     "createChild": {
@@ -60,7 +84,7 @@ exports[`a query=inverse-create.graphql 1`] = `
         "dadParent": {
           "id": "WyJQYXJlbnQiLDNd",
         },
-        "id": "WyJDaGlsZCIsMl0=",
+        "id": "WyJDaGlsZCIsM10=",
         "momParent": null,
         "name": "Me first but what about required constraints",
       },

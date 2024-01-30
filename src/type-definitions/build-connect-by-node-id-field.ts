@@ -1,6 +1,7 @@
-import { node, specFromNodeId } from 'grafast';
+import { __InputObjectStep, constant, node, specFromNodeId } from 'grafast';
 import { PgNestedMutationRelationship } from '../interfaces';
 import { isInsertOrUpdate } from './create-helpers';
+import { pgUpdateSingle } from '@dataplan/pg';
 
 export function buildConnectByNodeIdField(
   relationship: PgNestedMutationRelationship,
@@ -18,6 +19,7 @@ export function buildConnectByNodeIdField(
     mutationFields: { connectByNodeId },
     rightTable,
     relationName,
+    leftTable,
     localAttributes,
     remoteAttributes,
   } = relationship;
@@ -37,13 +39,16 @@ export function buildConnectByNodeIdField(
   if (!build.getNodeIdHandler) {
     throw new Error(`No build.getNodeIdHandler function found`);
   }
-  const nodeIdHandler = build.getNodeIdHandler(
-    inflection.tableType(rightTable.codec),
-  );
 
-  if (!nodeIdHandler) {
+  const rightTableType = inflection.tableType(rightTable.codec);
+
+  const rightHandler = build.getNodeIdHandler(rightTableType);
+
+  if (!rightHandler) {
     throw new Error(`No node id handler found for ${rightTable.name}`);
   }
+
+  const nodeIdFieldName = inflection.nodeIdFieldName();
 
   return [
     {
@@ -57,19 +62,52 @@ export function buildConnectByNodeIdField(
         'field',
       ),
       type:
-        !isReverse || !isUnique
+        !isReverse || isUnique
           ? inputType
           : new GraphQLList(new GraphQLNonNull(inputType)),
       applyPlan: EXPORTABLE(
-        (nodeIdHandler) =>
+        (rightHandler, nodeIdFieldName, rightTable) =>
           function plan($parent, args, info) {
             if (isInsertOrUpdate($parent)) {
               if (isReverse) {
+                const $inputObj = args.getRaw() as __InputObjectStep;
+
+                // extract the ids to connect by from the input object
+                // can't use args.get('id') because it's an array
+                const inputs = Object.entries($inputObj.eval() ?? {}).reduce(
+                  (m, [k, v]) => {
+                    if (v) {
+                      const id = Object.entries(v).find(
+                        ([k, v]) => k === nodeIdFieldName,
+                      )?.[1];
+                      return id ? [...m, id] : m;
+                    }
+                    return m;
+                  },
+                  [] as string[],
+                );
+
+                for (const id of inputs) {
+                  const spec = specFromNodeId(rightHandler, constant(id));
+
+                  pgUpdateSingle(rightTable, spec, {
+                    ...localAttributes.reduce((m, local, i) => {
+                      const remote = remoteAttributes[i];
+                      if (local && remote) {
+                        return {
+                          ...m,
+                          [remote]: $parent.get(local),
+                        };
+                      }
+                      return m;
+                    }, {}),
+                  });
+                }
               } else {
                 // key is on the object being updated or created
                 // find the node_id and update the foreign key column
                 const $nodeId = args.get('id');
-                const spec = specFromNodeId(nodeIdHandler, $nodeId);
+                const spec = specFromNodeId(rightHandler, $nodeId);
 
                 for (let i = 0; i < remoteAttributes.length; i++) {
                   const local = localAttributes[i];
@@ -82,7 +120,7 @@ export function buildConnectByNodeIdField(
               }
             }
           },
-        [nodeIdHandler],
+        [rightHandler, nodeIdFieldName, rightTable],
       ),
     },
   ];

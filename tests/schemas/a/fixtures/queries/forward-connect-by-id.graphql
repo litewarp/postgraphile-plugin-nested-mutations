@@ -1,17 +1,26 @@
+# test connectByNodeId of a related table that does contains the foreign keys for the relationship
+# i.e., the foreign key is on the child table
 mutation AddChildAndConnectToParentByNodeId {
-  createChild(
+  createParent(
     input: {
-      child: {
-        name: "My baby"
-        parentToDadParentId: { connectById: { id: "WyJQYXJlbnQiLDJd" } }
+      parent: {
+        name: "Daddy-O"
+        childrenToIdUsingDadParentId: {
+          connectById: [{ id: "WyJDaGlsZCIsMl0==" }]
+        }
       }
     }
   ) {
-    child {
+    parent {
       id
       name
-      dadParent {
-        id
+      childrenByDadParentId {
+        edges {
+          node {
+            id
+            name
+          }
+        }
       }
     }
   }
