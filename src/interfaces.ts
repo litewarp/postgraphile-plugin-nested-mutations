@@ -2,7 +2,10 @@ import type {
   PgCodec,
   PgCodecAttribute,
   PgCodecAttributes,
+  PgDeleteSingleStep,
+  PgInsertSingleStep,
   PgResourceUnique,
+  PgUpdateSingleStep,
 } from '@dataplan/pg';
 import { PgTableResource } from '@graphile-contrib/pg-many-to-many';
 import type {} from 'postgraphile';
@@ -27,6 +30,11 @@ export interface PgNestedUniqueAttributeCodecs<
   isNodeId?: boolean;
   codecs: Record<string, PgCodecAttribute>;
 }
+
+export type PgNestedDataPlanStep =
+  | PgInsertSingleStep
+  | PgUpdateSingleStep
+  | PgDeleteSingleStep;
 
 export type PgNestedMutationFieldNames =
   (typeof pgNestedMutationFields)[number];

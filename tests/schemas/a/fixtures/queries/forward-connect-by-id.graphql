@@ -1,0 +1,18 @@
+mutation AddChildAndConnectToParentByNodeId {
+  createChild(
+    input: {
+      child: {
+        name: "My baby"
+        parentToDadParentId: { connectById: { id: "WyJQYXJlbnQiLDJd" } }
+      }
+    }
+  ) {
+    child {
+      id
+      name
+      dadParent {
+        id
+      }
+    }
+  }
+}

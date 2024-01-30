@@ -80,6 +80,11 @@ export function getNestedMutationRelationships(
           tableFieldName: inflection.tableFieldName(leftTable),
         };
 
+      // todo - remove non-null assertion
+      const nodeIdHandler = build.getNodeIdHandler!(
+        inflection.tableType(rightTable.codec),
+      );
+
       const mutationFields: PgNestedTableMutationFields = {
         /**
          * Type that gets added to the relation's input type
@@ -104,10 +109,16 @@ export function getNestedMutationRelationships(
             typeName: inflection.nestedConnectByKeyInputType(relationship),
           },
         ],
-        connectByNodeId: {
-          fieldName: inflection.nestedConnectByNodeIdFieldName(relationship),
-          typeName: inflection.nestedConnectByNodeIdInputType(relationship),
-        },
+        ...(nodeIdHandler
+          ? {
+              connectByNodeId: {
+                fieldName:
+                  inflection.nestedConnectByNodeIdFieldName(relationship),
+                typeName:
+                  inflection.nestedConnectByNodeIdInputType(relationship),
+              },
+            }
+          : {}),
       };
 
       return [

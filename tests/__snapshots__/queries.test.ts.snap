@@ -1,23 +1,22 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
-exports[`a query=inverse-create.graphql 1`] = `
+exports[`a query=forward-connect-by-id.graphql 1`] = `
 {
   "data": {
     "createChild": {
       "child": {
         "dadParent": {
-          "id": "WyJQYXJlbnQiLDNd",
+          "id": "WyJQYXJlbnQiLDJd",
         },
         "id": "WyJDaGlsZCIsMl0=",
-        "momParent": null,
-        "name": "Me first but what about required constraints",
+        "name": "My baby",
       },
     },
   },
 }
 `;
 
-exports[`a query=test.graphql 1`] = `
+exports[`a query=forward-create.graphql 1`] = `
 {
   "data": {
     "createParent": {
@@ -47,6 +46,23 @@ exports[`a query=test.graphql 1`] = `
         },
         "id": "WyJQYXJlbnQiLDNd",
         "name": "test f1",
+      },
+    },
+  },
+}
+`;
+
+exports[`a query=inverse-create.graphql 1`] = `
+{
+  "data": {
+    "createChild": {
+      "child": {
+        "dadParent": {
+          "id": "WyJQYXJlbnQiLDNd",
+        },
+        "id": "WyJDaGlsZCIsMl0=",
+        "momParent": null,
+        "name": "Me first but what about required constraints",
       },
     },
   },

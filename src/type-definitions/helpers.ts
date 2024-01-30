@@ -1,6 +1,5 @@
 import { PgResource } from '@dataplan/pg';
 import { PgTableResource } from '@graphile-contrib/pg-many-to-many';
-import { PgNestedMutationBehaviors } from '../interfaces';
 
 export function isPgTableResource(r: PgResource): r is PgTableResource {
   return Boolean(r.codec.attributes) && !r.parameters;
@@ -44,7 +43,7 @@ export const isDeletable = (
 export const getCRUDBehavior = (
   build: GraphileBuild.Build,
   resource: PgResource<any, any, any, any, any>,
-): PgNestedMutationBehaviors => {
+) => {
   if (resource.parameters) return {};
   if (!resource.codec.attributes) return {};
   if (resource.codec.polymorphism) return {};
