@@ -2,7 +2,7 @@ import { PgTableResource } from '@graphile-contrib/pg-many-to-many';
 import {
   PgNestedMutationRelationship,
   PgNestedTableMutationFields,
-} from '../interfaces';
+} from './interfaces';
 
 export const pgNestedMutationFields = [
   'input',
@@ -116,6 +116,18 @@ export function getNestedRelationships(
                   inflection.nestedConnectByNodeIdFieldName(relationship),
                 typeName:
                   inflection.nestedConnectByNodeIdInputType(relationship),
+              },
+            }
+          : {}),
+
+        updateByKeys: [],
+        ...(nodeIdHandler
+          ? {
+              updateByNodeId: {
+                fieldName:
+                  inflection.nestedUpdateByNodeIdFieldName(relationship),
+                typeName:
+                  inflection.nestedUpdateByNodeIdInputType(relationship),
               },
             }
           : {}),

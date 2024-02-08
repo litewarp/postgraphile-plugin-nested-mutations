@@ -9,7 +9,7 @@ import type {
 } from '@dataplan/pg';
 import { PgTableResource } from '@graphile-contrib/pg-many-to-many';
 import type {} from 'postgraphile';
-import { pgNestedMutationFields } from './type-definitions/get-nested-relationships';
+import { pgNestedMutationFields } from './get-nested-relationships';
 
 export type PgNestedConnectorsInflectionFn = (
   this: GraphileBuild.Inflection,
@@ -49,6 +49,8 @@ export interface PgNestedTableMutationFields {
   create?: PgNestedMutationFieldDetails;
   connectByKeys?: PgNestedMutationFieldDetails[];
   connectByNodeId?: PgNestedMutationFieldDetails;
+  updateByKeys?: PgNestedMutationFieldDetails[];
+  updateByNodeId?: PgNestedMutationFieldDetails;
 }
 
 export interface PgNestedMutationRelationship {
@@ -96,12 +98,31 @@ declare global {
       //
     }
     interface Inflection {
+      /**
+       * Create Fields
+       */
+      nestedCreateFieldName: PgNestedConnectorsInflectionFn;
+      nestedCreateInputType: PgNestedConnectorsInflectionFn;
+
+      /**
+       * Connect Fields
+       */
       nestedConnectByNodeIdInputType: PgNestedConnectorsInflectionFn;
       nestedConnectByNodeIdFieldName: PgNestedConnectorsInflectionFn;
       nestedConnectByKeyInputType: PgNestedConnectorsInflectionFn;
       nestedConnectByKeyFieldName: PgNestedConnectorsInflectionFn;
-      nestedCreateFieldName: PgNestedConnectorsInflectionFn;
-      nestedCreateInputType: PgNestedConnectorsInflectionFn;
+      /**
+       * Update Fields
+       */
+      nestedUpdateByNodeIdInputType: PgNestedConnectorsInflectionFn;
+      nestedUpdateByNodeIdFieldName: PgNestedConnectorsInflectionFn;
+      nestedUpdateByKeyInputType: PgNestedConnectorsInflectionFn;
+      nestedUpdateByKeyFieldName: PgNestedConnectorsInflectionFn;
+      nestedUpdatePatchType: PgNestedConnectorsInflectionFn;
+
+      /**
+       * Input type and field for the connector
+       */
       nestedConnectorFieldType: PgNestedConnectorsInflectionFn;
       nestedConnectorFieldName: PgNestedConnectorsInflectionFn;
     }

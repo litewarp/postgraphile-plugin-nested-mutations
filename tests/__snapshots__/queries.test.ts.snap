@@ -59,6 +59,26 @@ exports[`a query=forward-create.graphql 1`] = `
 }
 `;
 
+exports[`a query=forward-update-by-id.graphql 1`] = `
+{
+  "data": {
+    "updateChild": {
+      "child": {
+        "dadParent": {
+          "id": "WyJQYXJlbnQiLDJd",
+          "name": "revised daddy",
+        },
+        "id": "WyJDaGlsZCIsMV0=",
+        "momParent": {
+          "id": "WyJQYXJlbnQiLDFd",
+        },
+        "name": "Charlie Hustle",
+      },
+    },
+  },
+}
+`;
+
 exports[`a query=reverse-connect-by-id.graphql 1`] = `
 {
   "data": {

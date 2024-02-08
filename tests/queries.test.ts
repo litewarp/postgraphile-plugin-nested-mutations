@@ -139,13 +139,13 @@ describe.each(sqlSchemas)('%s', (sqlSchema) => {
           };
           return (await execute(args)) as any;
         } finally {
-          contextWithPgClient.release?.();
+          await contextWithPgClient.release?.();
         }
       });
       if (result.errors) {
         console.log(result.errors.map((e: any) => e.originalError ?? e));
       }
-      console.log(JSON.stringify(result.data, null, 2));
+      // console.log(JSON.stringify(result.data, null, 2));
       expect(result).toMatchSnapshot();
     });
   }

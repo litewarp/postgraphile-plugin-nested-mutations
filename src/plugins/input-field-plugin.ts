@@ -1,13 +1,14 @@
-import { GraphileConfig } from 'graphile-build';
-import { isPgTableResource } from '../helpers';
-import {
+import type { GraphileConfig } from 'graphile-build';
+import type {
   GrafastInputFieldConfigMap,
   ObjectStep,
-  __InputListStep,
   __InputObjectStep,
 } from 'grafast';
+import { __InputListStep, constant } from 'grafast';
+import { isPgTableResource } from '../helpers';
 import { buildCreateField } from '../type-definitions/build-create-field';
 import { buildConnectByNodeIdField } from '../type-definitions/build-connect-by-node-id-field';
+import { buildUpdateByNodeIdField } from '../type-definitions/build-update-by-node-id-field';
 
 export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
   name: 'PgNestedMutationTypesPlugin',
@@ -129,7 +130,7 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
             const patchFieldName = inflection.patchField(tableFieldName);
 
             /**Store the relevant fieldNames on which to add the connectorType */
-            build.pgNestedMutationInputObjMap
+            pgNestedMutationInputObjMap
               .set(inflection.createField(leftTable), {
                 field: tableFieldName,
                 codec: leftTable.codec,
@@ -191,6 +192,17 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
                                 ),
                             }
                           : {}),
+                        ...(mutationFields.updateByNodeId
+                          ? {
+                              [mutationFields.updateByNodeId.fieldName]:
+                                fieldWithHooks(
+                                  ...buildUpdateByNodeIdField(
+                                    relationship,
+                                    build,
+                                  ),
+                                ),
+                            }
+                          : {}),
                       }),
                     }),
                     `PgNestedConnectorField for ${relationship.rightTable.name} in the ${relationship.leftTable.name} create or patch mutation`,
@@ -206,10 +218,17 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
 
       GraphQLObjectType_fields_field(field, build, context) {
         const {
-          scope: { isRootMutation, fieldName },
+          scope: { isRootMutation, fieldName, fieldBehaviorScope },
         } = context;
 
         const fieldKey = build.pgNestedMutationInputObjMap.get(fieldName);
+        const behaviors = build.behavior.parseBehaviorString(
+          fieldBehaviorScope ?? '',
+        );
+
+        const isUpdate = Boolean(
+          behaviors.find((b) => b.scope.includes('update')),
+        );
 
         if (
           isRootMutation &&
@@ -218,38 +237,38 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
         ) {
           const fieldPathsToApplyArgs = (
             build.pgNestedMutationRelationships.get(fieldKey.codec) ?? []
-          ).reduce(
-            (memo, rel) => {
-              const connectorPath = rel.mutationFields.input.fieldName;
-              const actions = Object.entries(rel.mutationFields).reduce(
-                (acc, [key, { fieldName }]) => {
-                  if (['input', 'connectByKeys'].includes(key) || !fieldName) {
-                    return acc;
-                  }
-                  const tuple = [connectorPath, fieldName] as [string, string];
-                  return [...acc, tuple];
-                },
-                [] as Array<[string, string]>,
-              );
-              return [...memo, ...actions];
-            },
-            [] as Array<[string, string]>,
-          );
+          ).reduce<[string, string][]>((memo, rel) => {
+            const connectorPath = rel.mutationFields.input.fieldName;
+            const actions = Object.entries(rel.mutationFields).reduce<
+              [string, string][]
+            >((acc, [key, o]) => {
+              if (
+                ['input', 'connectByKeys', 'updateByKeys'].includes(key) ||
+                !o.fieldName
+              ) {
+                return acc;
+              }
+              const tuple = [connectorPath, o.fieldName] as [string, string];
+              return [...acc, tuple];
+            }, []);
+            return [...memo, ...actions];
+          }, []);
 
           return {
             ...field,
             plan(parent, args, info) {
+              // only applying to create?
               const previousPlan = field.plan!(parent, args, info);
               const inputPlan = previousPlan.get('result') as ObjectStep;
+              const patchOrField = isUpdate ? 'patch' : fieldKey.field;
               for (const [connectorField, action] of fieldPathsToApplyArgs) {
-                // don't apply the path if the key is not present in the input
-                // object
-                const inputObj = args.getRaw(['input', fieldKey.field]).eval();
+                // don't apply the path if the key is not present in the input object
+                const inputObj = args.getRaw(['input', patchOrField]).eval();
 
                 if (inputObj[connectorField]) {
                   args.apply(inputPlan, [
                     'input',
-                    fieldKey.field,
+                    patchOrField,
                     connectorField,
                     action,
                   ]);
@@ -263,9 +282,10 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
       },
 
       GraphQLInputObjectType_fields(fields, build, context) {
+        const { EXPORTABLE } = build;
         const {
           fieldWithHooks,
-          scope: { isPgRowType, pgCodec, isNestedMutationCreateInputType },
+          scope: { isPgRowType, pgCodec, isPgUpdateInputType },
           Self,
         } = context;
 
@@ -276,7 +296,7 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
         ) {
           const data = build.pgNestedMutationRelationships.get(pgCodec) ?? [];
 
-          const addedFields = data.reduce(
+          const addedFields = data.reduce<GrafastInputFieldConfigMap<any, any>>(
             (memo, relationship) => {
               const {
                 mutationFields: { input },
@@ -284,27 +304,36 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
               } = relationship;
 
               const nestedType = build.getInputTypeByName(input.typeName);
-              if (nestedType) {
-                return {
-                  ...memo,
-                  [input.fieldName]: fieldWithHooks(
-                    {
-                      fieldName: input.fieldName,
-                      isNestedMutationInputField: true,
-                    },
-                    {
-                      description: build.wrapDescription(
-                        `Input for the nested mutation of \`${rightTable.name}\ in the \`${Self.name}\` mutation`,
-                        'field',
-                      ),
-                      type: nestedType,
-                    },
-                  ),
-                };
-              }
-              return memo;
+
+              return {
+                ...memo,
+                [input.fieldName]: fieldWithHooks(
+                  {
+                    fieldName: input.fieldName,
+                    isNestedMutationInputField: true,
+                  },
+                  {
+                    description: build.wrapDescription(
+                      `Input for the nested mutation of \`${rightTable.name}\ in the \`${Self.name}\` mutation`,
+                      'field',
+                    ),
+                    type: nestedType,
+                    autoApplyAfterParentApplyPlan: true,
+                    applyPlan: EXPORTABLE(
+                      () =>
+                        function plan($parent, args, info) {
+                          const $inputObj = args.getRaw() as __InputObjectStep;
+                          if ($inputObj.evalHas('updateById')) {
+                            console.log($parent);
+                          }
+                        },
+                      [],
+                    ),
+                  },
+                ),
+              };
             },
-            {} as GrafastInputFieldConfigMap<any, any>,
+            {},
           );
 
           return build.extend(fields, addedFields, 'test');

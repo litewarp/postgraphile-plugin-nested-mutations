@@ -1,0 +1,28 @@
+mutation ForwardUpdateByNodeId {
+  updateChild(
+    input: {
+      rowId: 1
+      patch: {
+        name: "Charlie Hustle"
+        parentToDadParentId: {
+          updateById: {
+            id: "WyJQYXJlbnQiLDJd"
+            patch: { name: "revised daddy" }
+          }
+        }
+      }
+    }
+  ) {
+    child {
+      id
+      name
+      dadParent {
+        id
+        name
+      }
+      momParent {
+        id
+      }
+    }
+  }
+}

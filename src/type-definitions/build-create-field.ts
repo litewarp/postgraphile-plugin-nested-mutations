@@ -1,8 +1,13 @@
-import { GraphileBuild } from 'graphile-build';
-import { PgNestedMutationRelationship } from '../interfaces';
-import { isInsertOrUpdate } from '../helpers';
-import { ExecutableStep, __InputListStep, __InputObjectStep } from 'grafast';
+import type { GraphileBuild } from 'graphile-build';
+import type {
+  ExecutableStep,
+  __InputListStep,
+  __InputObjectStep,
+  ObjectStep,
+} from 'grafast';
 import { pgInsertSingle } from '@dataplan/pg';
+import type { PgNestedMutationRelationship } from '../interfaces';
+import { isInsertOrUpdate } from '../helpers';
 
 export function buildCreateField(
   relationship: PgNestedMutationRelationship,
@@ -32,12 +37,6 @@ export function buildCreateField(
 
   const inputType = build.getInputTypeByName(create.typeName);
 
-  if (!inputType) {
-    throw new Error(
-      `Could not find input type ${create.typeName} for create mutation for ${rightTable.name}`,
-    );
-  }
-
   return [
     {
       fieldName: create.fieldName,
@@ -57,7 +56,15 @@ export function buildCreateField(
           ? inputType
           : new GraphQLList(new GraphQLNonNull(inputType)),
       applyPlan: EXPORTABLE(
-        (isReverse, localAttributes, remoteAttributes, rightTable) =>
+        (
+          inflection,
+          isInsertOrUpdate,
+          isReverse,
+          localAttributes,
+          pgInsertSingle,
+          remoteAttributes,
+          rightTable,
+        ) =>
           function plan($parent, args, info) {
             if (isInsertOrUpdate($parent)) {
               if (isReverse) {
@@ -65,15 +72,14 @@ export function buildCreateField(
                 // i.e., isReverse = true
                 // get the referenced key on the root table
                 // add it to the payload for the nested create
-                const foreignKeySteps = localAttributes.reduce(
-                  (memo, local, i) => {
-                    const remote = remoteAttributes[i];
-                    return remote
-                      ? { ...memo, [remote]: $parent.get(local) }
-                      : memo;
-                  },
-                  {} as Record<string, ExecutableStep>,
-                );
+                const foreignKeySteps = localAttributes.reduce<
+                  Record<string, ExecutableStep>
+                >((memo, local, i) => {
+                  const remote = remoteAttributes[i];
+                  return remote
+                    ? { ...memo, [remote]: $parent.get(local) }
+                    : memo;
+                }, {});
 
                 const remotePrimaryUnique = rightTable.uniques.find(
                   (u) => u.isPrimary,
@@ -116,23 +122,25 @@ export function buildCreateField(
                 // if the root table contains the foreign keys
                 // the relation is unique so you can only input one
                 // create the new object and then update the root
-
                 const $inputObj = args.getRaw() as __InputObjectStep;
 
-                const inputs = Object.entries($inputObj.eval() ?? {}).reduce(
-                  (m, [k, v]) => (Boolean(v) ? [...m, k] : m),
-                  [] as string[],
+                // TODO REPLACE WITH PGTRANSACTION??
+
+                const { attributes } = rightTable.codec;
+
+                const inputValues = Object.keys(attributes).reduce(
+                  (inputObjMemo, attr) => {
+                    // filter out primary keys
+                    // add in foreign keys(?)
+                    if ($inputObj.evalHas(attr)) {
+                      return { ...inputObjMemo, [attr]: $inputObj.get(attr) };
+                    }
+                    return inputObjMemo;
+                  },
+                  {},
                 );
 
-                const $inserted = pgInsertSingle(rightTable, {
-                  ...inputs.reduce(
-                    (m, f) => ({
-                      ...m,
-                      [f]: args.get(f),
-                    }),
-                    {},
-                  ),
-                });
+                const $inserted = pgInsertSingle(rightTable, inputValues);
 
                 for (let j = 0; j < localAttributes.length; j++) {
                   const localAttr = localAttributes[j];
@@ -148,7 +156,15 @@ export function buildCreateField(
               }
             }
           },
-        [isReverse, localAttributes, remoteAttributes, rightTable],
+        [
+          inflection,
+          isInsertOrUpdate,
+          isReverse,
+          localAttributes,
+          pgInsertSingle,
+          remoteAttributes,
+          rightTable,
+        ],
       ),
     },
   ];
