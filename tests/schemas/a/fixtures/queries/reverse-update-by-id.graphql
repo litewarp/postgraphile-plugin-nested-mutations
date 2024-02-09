@@ -1,0 +1,28 @@
+mutation ReverseUpdateByNodeId {
+  updateParent(
+    input: {
+      rowId: 1
+      patch: {
+        name: "new mommy"
+        childrenToIdUsingMomParentId: {
+          updateById: [
+            { id: "WyJDaGlsZCIsMV0==", patch: { name: "new kiddo" } }
+          ]
+        }
+      }
+    }
+  ) {
+    parent {
+      id
+      name
+      childrenByMomParentId {
+        edges {
+          node {
+            id
+            name
+          }
+        }
+      }
+    }
+  }
+}

@@ -14,6 +14,7 @@ module.exports = {
   rules: {
     '@typescript-eslint/method-signature-style': 'off',
     '@typescript-eslint/no-namespace': 'off',
+    '@typescript-eslint/no-shadow': 'off',
     '@typescript-eslint/no-unsafe-call': 'off',
     '@typescript-eslint/no-unsafe-argument': 'off',
     '@typescript-eslint/no-unsafe-member-access': 'off',
