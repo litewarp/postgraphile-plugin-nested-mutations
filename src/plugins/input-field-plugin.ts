@@ -324,7 +324,7 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
                         function plan($parent, args, info) {
                           const $inputObj = args.getRaw() as __InputObjectStep;
                           if ($inputObj.evalHas('updateById')) {
-                            console.log($parent);
+                            args.apply($parent);
                           }
                         },
                       [],

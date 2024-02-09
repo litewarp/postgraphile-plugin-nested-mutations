@@ -1,13 +1,8 @@
-import {
-  __InputListStep,
-  __InputObjectStep,
-  constant,
-  node,
-  specFromNodeId,
-} from 'grafast';
-import { PgNestedMutationRelationship } from '../interfaces';
-import { isInsertOrUpdate } from '../helpers';
+import type { __InputObjectStep } from 'grafast';
+import { __InputListStep, constant, node, specFromNodeId } from 'grafast';
 import { pgUpdateSingle } from '@dataplan/pg';
+import type { PgNestedMutationRelationship } from '../interfaces';
+import { isInsertOrUpdate } from '../helpers';
 
 export function buildConnectByNodeIdField(
   relationship: PgNestedMutationRelationship,
@@ -25,7 +20,6 @@ export function buildConnectByNodeIdField(
     mutationFields: { connectByNodeId },
     rightTable,
     relationName,
-    leftTable,
     localAttributes,
     remoteAttributes,
   } = relationship;
@@ -37,10 +31,6 @@ export function buildConnectByNodeIdField(
   }
 
   const inputType = build.getInputTypeByName(connectByNodeId.typeName);
-
-  if (!inputType) {
-    throw new Error(`Could not find input type ${connectByNodeId.typeName}`);
-  }
 
   if (!build.getNodeIdHandler) {
     throw new Error(`No build.getNodeIdHandler function found`);
@@ -72,7 +62,18 @@ export function buildConnectByNodeIdField(
           ? inputType
           : new GraphQLList(new GraphQLNonNull(inputType)),
       applyPlan: EXPORTABLE(
-        (rightHandler, nodeIdFieldName, rightTable) =>
+        (
+          __InputListStep,
+          isInsertOrUpdate,
+          isReverse,
+          localAttributes,
+          nodeIdFieldName,
+          pgUpdateSingle,
+          remoteAttributes,
+          rightHandler,
+          rightTable,
+          specFromNodeId,
+        ) =>
           function plan($parent, args, info) {
             if (isInsertOrUpdate($parent)) {
               if (isReverse) {
@@ -137,7 +138,18 @@ export function buildConnectByNodeIdField(
               }
             }
           },
-        [rightHandler, nodeIdFieldName, rightTable],
+        [
+          __InputListStep,
+          isInsertOrUpdate,
+          isReverse,
+          localAttributes,
+          nodeIdFieldName,
+          pgUpdateSingle,
+          remoteAttributes,
+          rightHandler,
+          rightTable,
+          specFromNodeId,
+        ],
       ),
     },
   ];
