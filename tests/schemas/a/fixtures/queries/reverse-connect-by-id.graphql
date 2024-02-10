@@ -14,7 +14,7 @@ mutation AddChildAndConnectToParentByNodeId {
       name
       dadParent {
         id
-        name
+        parentName
       }
     }
   }

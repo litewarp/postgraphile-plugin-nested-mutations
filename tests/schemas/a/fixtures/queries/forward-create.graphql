@@ -1,41 +1,24 @@
-# test creation of a related table containing the foreign keys for the relationship
-mutation {
-  createParent(
+# test creation of a related table that does not contain the foreign keys for the relationship
+mutation AddParentFromChild {
+  createChild(
     input: {
-      parent: {
-        name: "test f1"
-        childrenToIdUsingMomParentId: {
-          create: [{ name: "child 2 of test f1" }]
-        }
-        childrenToIdUsingDadParentId: {
-          create: [{ name: "child 1 of test f1" }]
+      child: {
+        name: "Me first but what about required constraints"
+        parentToDadParentId: {
+          create: { parentName: "my father this of thee" }
         }
       }
     }
   ) {
-    parent {
+    child {
       id
       name
-      childrenByMomParentId {
-        nodes {
-          id
-          name
-          momParent {
-            id
-          }
-        }
+      dadParent {
+        id
+        parentName
       }
-      childrenByDadParentId {
-        nodes {
-          id
-          momParent {
-            id
-          }
-          dadParent {
-            id
-          }
-          name
-        }
+      momParent {
+        id
       }
     }
   }

@@ -3,7 +3,7 @@ mutation ReverseUpdateByNodeId {
     input: {
       rowId: 1
       patch: {
-        name: "new mommy"
+        parentName: "new mommy"
         childrenToIdUsingMomParentId: {
           updateById: [
             { id: "WyJDaGlsZCIsMV0==", patch: { name: "new kiddo" } }
@@ -14,7 +14,7 @@ mutation ReverseUpdateByNodeId {
   ) {
     parent {
       id
-      name
+      parentName
       childrenByMomParentId {
         edges {
           node {

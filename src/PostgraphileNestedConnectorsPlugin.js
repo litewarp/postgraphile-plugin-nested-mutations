@@ -68,9 +68,8 @@ module.exports = function PostGraphileNestedConnectorsPlugin(builder) {
         if (isNodeIdConnector) {
           const nodeId = input[nodeIdFieldName];
           const primaryKeys = foreignTable.primaryKeyConstraint.keyAttributes;
-          const { Type, identifiers } = build.getTypeAndIdentifiersFromNodeId(
-            nodeId,
-          );
+          const { Type, identifiers } =
+            build.getTypeAndIdentifiersFromNodeId(nodeId);
           if (Type !== ForeignTableType) {
             throw new Error('Mismatched type');
           }
@@ -94,10 +93,10 @@ module.exports = function PostGraphileNestedConnectorsPlugin(builder) {
             foreignPrimaryKeys.map(
               (k) => sql.fragment`
                 ${sql.identifier(k.name)} = ${gql2pg(
-                input[inflection.column(k)],
-                k.type,
-                k.typeModifier,
-              )}
+                  input[inflection.column(k)],
+                  k.type,
+                  k.typeModifier,
+                )}
               `,
             ),
             ') and (',
@@ -195,22 +194,17 @@ module.exports = function PostGraphileNestedConnectorsPlugin(builder) {
                   description: `The fields on \`${tableFieldName}\` to look up the row to connect.`,
                   fields: () =>
                     keys
-                      .map((k) =>
-                        Object.assign(
-                          {},
-                          {
-                            [inflection.column(k)]: {
-                              description: k.description,
-                              type: new GraphQLNonNull(
-                                getGqlInputTypeByTypeIdAndModifier(
-                                  k.typeId,
-                                  k.typeModifier,
-                                ),
-                              ),
-                            },
-                          },
-                        ),
-                      )
+                      .map((k) => ({
+                        [inflection.column(k)]: {
+                          description: k.description,
+                          type: new GraphQLNonNull(
+                            getGqlInputTypeByTypeIdAndModifier(
+                              k.typeId,
+                              k.typeModifier,
+                            ),
+                          ),
+                        },
+                      }))
                       .reduce((res, o) => Object.assign(res, o), {}),
                 },
                 {

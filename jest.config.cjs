@@ -6,4 +6,5 @@ module.exports = {
     '^.+\\.ts$': '@swc/jest',
   },
   extensionsToTreatAsEsm: ['.ts'],
+  watchAll: true,
 };

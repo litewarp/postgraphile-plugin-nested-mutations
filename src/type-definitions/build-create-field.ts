@@ -3,7 +3,6 @@ import type {
   ExecutableStep,
   __InputListStep,
   __InputObjectStep,
-  ObjectStep,
 } from 'grafast';
 import { pgInsertSingle } from '@dataplan/pg';
 import type { PgNestedMutationRelationship } from '../interfaces';
@@ -21,6 +20,7 @@ export function buildCreateField(
 
   const {
     mutationFields: { create },
+    leftTable,
     rightTable,
     isReverse,
     isUnique,
@@ -72,6 +72,7 @@ export function buildCreateField(
                 // i.e., isReverse = true
                 // get the referenced key on the root table
                 // add it to the payload for the nested create
+
                 const foreignKeySteps = localAttributes.reduce<
                   Record<string, ExecutableStep>
                 >((memo, local, i) => {
@@ -88,13 +89,15 @@ export function buildCreateField(
                 // remove primary key and all the foreign keys you are adding
                 const nonForeignKeys = Object.keys(
                   rightTable.codec.attributes,
-                ).filter(
-                  (a) =>
+                ).filter((a) => {
+                  const attr = rightTable.codec.attributes[a];
+                  return (
                     !remoteAttributes.includes(a) &&
                     (remotePrimaryUnique
                       ? !remotePrimaryUnique.attributes.includes(a)
-                      : true),
-                );
+                      : true)
+                  );
+                });
 
                 const $list = args.getRaw() as __InputListStep;
 
@@ -132,8 +135,15 @@ export function buildCreateField(
                   (inputObjMemo, attr) => {
                     // filter out primary keys
                     // add in foreign keys(?)
-                    if ($inputObj.evalHas(attr)) {
-                      return { ...inputObjMemo, [attr]: $inputObj.get(attr) };
+                    const attrFieldName = inflection.attribute({
+                      attributeName: attr,
+                      codec: rightTable.codec,
+                    });
+                    if ($inputObj.evalHas(attrFieldName)) {
+                      return {
+                        ...inputObjMemo,
+                        [attr]: $inputObj.get(attrFieldName),
+                      };
                     }
                     return inputObjMemo;
                   },

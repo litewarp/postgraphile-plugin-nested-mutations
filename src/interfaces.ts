@@ -7,9 +7,9 @@ import type {
   PgResourceUnique,
   PgUpdateSingleStep,
 } from '@dataplan/pg';
-import { PgTableResource } from '@graphile-contrib/pg-many-to-many';
+import type { PgTableResource } from '@graphile-contrib/pg-many-to-many';
 import type {} from 'postgraphile';
-import { pgNestedMutationFields } from './get-nested-relationships';
+import type { pgNestedMutationFields } from './get-nested-relationships';
 
 export type PgNestedConnectorsInflectionFn = (
   this: GraphileBuild.Inflection,

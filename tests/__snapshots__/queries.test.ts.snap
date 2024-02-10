@@ -16,7 +16,7 @@ exports[`a query=forward-connect-by-id.graphql 1`] = `
           ],
         },
         "id": "WyJQYXJlbnQiLDNd",
-        "name": "Daddy-O",
+        "parentName": "Daddy-O",
       },
     },
   },
@@ -24,6 +24,61 @@ exports[`a query=forward-connect-by-id.graphql 1`] = `
 `;
 
 exports[`a query=forward-create.graphql 1`] = `
+{
+  "data": {
+    "createChild": {
+      "child": {
+        "dadParent": {
+          "id": "WyJQYXJlbnQiLDNd",
+          "parentName": "my father this of thee",
+        },
+        "id": "WyJDaGlsZCIsM10=",
+        "momParent": null,
+        "name": "Me first but what about required constraints",
+      },
+    },
+  },
+}
+`;
+
+exports[`a query=forward-update-by-id.graphql 1`] = `
+{
+  "data": {
+    "updateChild": {
+      "child": {
+        "dadParent": {
+          "id": "WyJQYXJlbnQiLDJd",
+          "parentName": "revised daddy",
+        },
+        "id": "WyJDaGlsZCIsMV0=",
+        "momParent": {
+          "id": "WyJQYXJlbnQiLDFd",
+        },
+        "name": "Charlie Hustle",
+      },
+    },
+  },
+}
+`;
+
+exports[`a query=reverse-connect-by-id.graphql 1`] = `
+{
+  "data": {
+    "createChild": {
+      "child": {
+        "dadParent": {
+          "id": "WyJQYXJlbnQiLDJd",
+          "parentName": "dad",
+        },
+        "id": "WyJDaGlsZCIsM10=",
+        "name": "My baby",
+      },
+    },
+  },
+}
+`;
+
+exports[`a query=reverse-create.graphql 1`] = `
 {
   "data": {
     "createParent": {
@@ -52,61 +107,7 @@ exports[`a query=forward-create.graphql 1`] = `
           ],
         },
         "id": "WyJQYXJlbnQiLDNd",
-        "name": "test f1",
-      },
-    },
-  },
-}
-`;
-
-exports[`a query=forward-update-by-id.graphql 1`] = `
-{
-  "data": {
-    "updateChild": {
-      "child": {
-        "dadParent": {
-          "id": "WyJQYXJlbnQiLDJd",
-          "name": "revised daddy",
-        },
-        "id": "WyJDaGlsZCIsMV0=",
-        "momParent": {
-          "id": "WyJQYXJlbnQiLDFd",
-        },
-        "name": "Charlie Hustle",
-      },
-    },
-  },
-}
-`;
-
-exports[`a query=reverse-connect-by-id.graphql 1`] = `
-{
-  "data": {
-    "createChild": {
-      "child": {
-        "dadParent": {
-          "id": "WyJQYXJlbnQiLDJd",
-          "name": "dad",
-        },
-        "id": "WyJDaGlsZCIsM10=",
-        "name": "My baby",
-      },
-    },
-  },
-}
-`;
-
-exports[`a query=reverse-create.graphql 1`] = `
-{
-  "data": {
-    "createChild": {
-      "child": {
-        "dadParent": {
-          "id": "WyJQYXJlbnQiLDNd",
-        },
-        "id": "WyJDaGlsZCIsM10=",
-        "momParent": null,
-        "name": "Me first but what about required constraints",
+        "parentName": "test f1",
       },
     },
   },
@@ -129,7 +130,7 @@ exports[`a query=reverse-update-by-id.graphql 1`] = `
           ],
         },
         "id": "WyJQYXJlbnQiLDFd",
-        "name": "new mommy",
+        "parentName": "new mommy",
       },
     },
   },

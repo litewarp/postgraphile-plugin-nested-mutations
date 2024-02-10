@@ -21,6 +21,8 @@ module.exports = {
     '@typescript-eslint/explicit-function-return-type': 'off',
     '@typescript-eslint/no-unsafe-assignment': 'off',
     '@typescript-eslint/no-unsafe-return': 'off',
+    '@typescript-eslint/unbound-method': 'off',
+    '@typescript-eslint/require-await': 'off',
     'eslint-comments/require-description': 'off',
     'no-console': 'warn',
     'no-param-reassign': 'off',

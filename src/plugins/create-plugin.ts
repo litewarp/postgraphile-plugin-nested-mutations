@@ -34,7 +34,7 @@ export const PostGraphileNestedMutationsCreatePlugin: GraphileConfig.Plugin = {
             this.tableFieldName(isReverse ? rightTable : leftTable),
             [...(isReverse ? remoteAttributes : localAttributes)],
             'fkey',
-            this.tableFieldName(isReverse ? leftTable : rightTable),
+            this.tableFieldName(rightTable),
             'create',
             'input',
           ]
@@ -67,6 +67,7 @@ export const PostGraphileNestedMutationsCreatePlugin: GraphileConfig.Plugin = {
           for (const relationship of relationships) {
             const {
               isReverse,
+              leftTable,
               rightTable,
               mutationFields: { create },
             } = relationship;

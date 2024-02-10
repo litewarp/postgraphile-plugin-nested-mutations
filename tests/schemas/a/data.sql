@@ -1,8 +1,8 @@
 -- id: 1, nodeId: WyJQYXJlbnQiLDFd
-insert into a.parent (name) values ('mom');
+insert into a.parent (parent_name) values ('mom');
 
 -- id: 2, nodeId: WyJQYXJlbnQiLDJd
-insert into a.parent (name) values ('dad');
+insert into a.parent (parent_name) values ('dad');
 
 -- id: 1, nodeId: WyJDaGlsZCIsMV0=
 insert into
