@@ -1,32 +1,28 @@
-import type { GraphileBuild } from 'graphile-build';
-import type {
-  ExecutableStep,
-  __InputListStep,
-  __InputObjectStep,
-} from 'grafast';
-import { pgInsertSingle } from '@dataplan/pg';
+import { constantCase, type GraphileBuild } from 'graphile-build';
+import { object, type __InputListStep, type __InputObjectStep } from 'grafast';
+import type { SQL } from 'postgraphile/pg-sql2';
+import type { PgCodec } from '@dataplan/pg';
 import type { PgNestedMutationRelationship } from '../interfaces';
-import { isInsertOrUpdate } from '../helpers';
+import { inspect, isInsertOrUpdate } from '../helpers';
+import { withPgClientResource } from '../steps/with-pgclient-resource';
+import { nestedCreateStep } from '../steps/nested-create-step';
 
 export function buildCreateField(
   relationship: PgNestedMutationRelationship,
   build: GraphileBuild.Build,
 ): Parameters<GraphileBuild.InputFieldWithHooksFunction> {
   const {
-    inflection,
+    sql,
     EXPORTABLE,
     graphql: { GraphQLList, GraphQLNonNull },
   } = build;
 
   const {
     mutationFields: { create },
-    leftTable,
     rightTable,
     isReverse,
     isUnique,
-    localAttributes,
     relationName,
-    remoteAttributes,
   } = relationship;
 
   if (!create) {
@@ -56,48 +52,40 @@ export function buildCreateField(
           ? inputType
           : new GraphQLList(new GraphQLNonNull(inputType)),
       applyPlan: EXPORTABLE(
-        (
-          inflection,
-          isInsertOrUpdate,
-          isReverse,
-          localAttributes,
-          pgInsertSingle,
-          remoteAttributes,
-          rightTable,
-        ) =>
-          function plan($parent, args, info) {
+        (isInsertOrUpdate, nestedCreateStep, relationship) =>
+          function plan($parent, args, _info) {
+            const {
+              isReverse,
+              isUnique,
+              rightTable,
+              localAttributes,
+              remoteAttributes,
+            } = relationship;
+
             if (isInsertOrUpdate($parent)) {
-              if (isReverse) {
+              if (!isReverse || isUnique) {
+                // if the left table contains the foreign keys
+                // the relation is unique so you can only input one
+                // create the new right table object and then update the left table
+
+                const $nestedObj = nestedCreateStep(
+                  rightTable,
+                  args.get(),
+                  false,
+                );
+
+                for (let i = 0; i < localAttributes.length; i++) {
+                  const field = localAttributes[i];
+                  const remote = remoteAttributes[i];
+                  if (field && remote) {
+                    $parent.set(field, $nestedObj.get(remote));
+                  }
+                }
+              } else {
                 // if the relation table contains the foreign keys
                 // i.e., isReverse = true
                 // get the referenced key on the root table
                 // add it to the payload for the nested create
-
-                const foreignKeySteps = localAttributes.reduce<
-                  Record<string, ExecutableStep>
-                >((memo, local, i) => {
-                  const remote = remoteAttributes[i];
-                  return remote
-                    ? { ...memo, [remote]: $parent.get(local) }
-                    : memo;
-                }, {});
-
-                const remotePrimaryUnique = rightTable.uniques.find(
-                  (u) => u.isPrimary,
-                );
-
-                // remove primary key and all the foreign keys you are adding
-                const nonForeignKeys = Object.keys(
-                  rightTable.codec.attributes,
-                ).filter((a) => {
-                  const attr = rightTable.codec.attributes[a];
-                  return (
-                    !remoteAttributes.includes(a) &&
-                    (remotePrimaryUnique
-                      ? !remotePrimaryUnique.attributes.includes(a)
-                      : true)
-                  );
-                });
 
                 const $list = args.getRaw() as __InputListStep;
 
@@ -106,75 +94,24 @@ export function buildCreateField(
                 for (let j = 0; j < listLength; j++) {
                   const $item = $list.getDep(j) as __InputObjectStep;
 
-                  pgInsertSingle(rightTable, {
-                    ...foreignKeySteps,
-                    ...nonForeignKeys.reduce((m, f) => {
-                      return {
-                        ...m,
-                        [f]: $item.get(
-                          inflection.attribute({
-                            codec: rightTable.codec,
-                            attributeName: f,
-                          }),
-                        ),
-                      };
-                    }, {}),
-                  });
-                }
-              } else {
-                // if the root table contains the foreign keys
-                // the relation is unique so you can only input one
-                // create the new object and then update the root
-                const $inputObj = args.getRaw() as __InputObjectStep;
+                  const $nestedObj = nestedCreateStep(rightTable, $item);
 
-                // TODO REPLACE WITH PGTRANSACTION??
-
-                const { attributes } = rightTable.codec;
-
-                const inputValues = Object.keys(attributes).reduce(
-                  (inputObjMemo, attr) => {
-                    // filter out primary keys
-                    // add in foreign keys(?)
-                    const attrFieldName = inflection.attribute({
-                      attributeName: attr,
-                      codec: rightTable.codec,
-                    });
-                    if ($inputObj.evalHas(attrFieldName)) {
-                      return {
-                        ...inputObjMemo,
-                        [attr]: $inputObj.get(attrFieldName),
-                      };
+                  for (let i = 0; i < localAttributes.length; i++) {
+                    const field = localAttributes[i];
+                    const remote = remoteAttributes[i];
+                    if (field && remote) {
+                      $nestedObj.set(remote, $parent.get(field));
                     }
-                    return inputObjMemo;
-                  },
-                  {},
-                );
-
-                const $inserted = pgInsertSingle(rightTable, inputValues);
-
-                for (let j = 0; j < localAttributes.length; j++) {
-                  const localAttr = localAttributes[j];
-                  const remoteAttr = remoteAttributes[j];
-
-                  if (localAttr && remoteAttr) {
-                    $parent.set(
-                      localAttr,
-                      $inserted.get(inflection.camelCase(remoteAttr)),
-                    );
                   }
+
+                  // add localAttributions to nested create
+                  // nestedCreate(relationship, $parent, $item);
                 }
               }
             }
           },
-        [
-          inflection,
-          isInsertOrUpdate,
-          isReverse,
-          localAttributes,
-          pgInsertSingle,
-          remoteAttributes,
-          rightTable,
-        ],
+
+        [isInsertOrUpdate, nestedCreateStep, relationship],
       ),
     },
   ];

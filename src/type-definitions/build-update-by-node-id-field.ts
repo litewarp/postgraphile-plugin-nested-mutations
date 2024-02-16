@@ -6,7 +6,7 @@ import {
 } from 'grafast';
 import {} from '@dataplan/pg';
 import type { PgNestedMutationRelationship } from '../interfaces';
-import { nestedUpdateById } from '../steps/update-by-id';
+import { nestedUpdateById } from '../steps/nested-update-by-id-step';
 
 export function buildUpdateByNodeIdField(
   relationship: PgNestedMutationRelationship,
