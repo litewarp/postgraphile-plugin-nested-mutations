@@ -14,6 +14,7 @@ export function nestedCreateStep(
     rightTable,
     args,
     async (client, data, { attributes, values: addedVals }) => {
+      console.log('nestedCreateStep', addedVals, attributes);
       const resourceSource = rightTable.from;
 
       if (!sql.isSQL(resourceSource)) {
@@ -30,7 +31,20 @@ export function nestedCreateStep(
       const vals: SQL[] = [];
       const sels = new Map<string, PgCodec>();
 
-      console.log(data);
+      // create the selection set
+      for (const attrib of attributes) {
+        const codec = rightTable.codec.attributes[attrib]?.codec;
+        if (!codec) {
+          throw new Error(
+            `Could not find codec for attribute ${attrib} on ${rightTable.name}`,
+          );
+        }
+
+        // add it to the selection set if not already there
+        if (!sels.has(attrib)) {
+          sels.set(attrib, codec);
+        }
+      }
 
       Object.entries(data).forEach(([k, v]) => {
         // this is a hack for now
@@ -48,32 +62,23 @@ export function nestedCreateStep(
         if (k === 'rowId' || !v || !codec) {
           return;
         }
-        // add the inserted attributes to the selected attributes
-        sels.set(snaked, codec);
 
         // create the sql values for insert
         attrs.push(sql.identifier(snaked));
         vals.push(sql`${sql.value(codec.toPg(v))}::${codec.sqlType}`);
       });
 
-      for (const attrib of attributes) {
-        const codec = rightTable.codec.attributes[attrib]?.codec;
+      for (const [k, v] of addedVals) {
+        // add any values added by steps
+        const codec = rightTable.codec.attributes[k]?.codec;
         if (!codec) {
           throw new Error(
-            `Could not find codec for attribute ${attrib} on ${rightTable.name}`,
+            `Could not find codec for attribute ${k} on ${rightTable.name}`,
           );
         }
-
-        // add it to the selection set if not already there
-        if (!sels.has(attrib)) {
-          sels.set(attrib, codec);
-        }
-
-        // add any values added by steps
-        const val = addedVals.find(([key, _]) => key === attrib);
-        if (val) {
-          attrs.push(sql.identifier(attrib));
-          vals.push(sql`${sql.value(codec.toPg(val[1]))}::${codec.sqlType}`);
+        if (v) {
+          attrs.push(sql.identifier(k));
+          vals.push(sql`${sql.value(codec.toPg(v))}::${codec.sqlType}`);
         }
       }
 
@@ -90,10 +95,10 @@ export function nestedCreateStep(
           ? sql`returning\n${sql.indent(sql.join(frags, ',\n'))}`
           : sql.blank;
 
-      const selections = sql.join(attrs, ', ');
+      const insertedAttrs = sql.join(attrs, ', ');
       const values = sql.join(vals, ', ');
 
-      const query = sql`insert into ${table} (${selections}) values (${values})${returning}`;
+      const query = sql`insert into ${table} (${insertedAttrs}) values (${values})${returning}`;
 
       const res = await client
         .withTransaction((tx) =>

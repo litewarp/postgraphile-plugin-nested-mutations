@@ -52,7 +52,7 @@ export function buildCreateField(
           ? inputType
           : new GraphQLList(new GraphQLNonNull(inputType)),
       applyPlan: EXPORTABLE(
-        (isInsertOrUpdate, nestedCreateStep, relationship) =>
+        (isInsertOrUpdate, nestedCreateStep, relationName, relationship) =>
           function plan($parent, args, _info) {
             const {
               isReverse,
@@ -64,15 +64,12 @@ export function buildCreateField(
 
             if (isInsertOrUpdate($parent)) {
               if (!isReverse || isUnique) {
+                console.log(isReverse);
                 // if the left table contains the foreign keys
                 // the relation is unique so you can only input one
                 // create the new right table object and then update the left table
 
-                const $nestedObj = nestedCreateStep(
-                  rightTable,
-                  args.get(),
-                  false,
-                );
+                const $nestedObj = nestedCreateStep(rightTable, args.get());
 
                 for (let i = 0; i < localAttributes.length; i++) {
                   const field = localAttributes[i];
@@ -96,6 +93,7 @@ export function buildCreateField(
 
                   const $nestedObj = nestedCreateStep(rightTable, $item);
 
+                  console.log(relationName, localAttributes, remoteAttributes);
                   for (let i = 0; i < localAttributes.length; i++) {
                     const field = localAttributes[i];
                     const remote = remoteAttributes[i];
@@ -111,7 +109,7 @@ export function buildCreateField(
             }
           },
 
-        [isInsertOrUpdate, nestedCreateStep, relationship],
+        [isInsertOrUpdate, nestedCreateStep, relationName, relationship],
       ),
     },
   ];

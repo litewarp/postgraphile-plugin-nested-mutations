@@ -1,4 +1,9 @@
-import type { PgClient, PgCodec, WithPgClient } from '@dataplan/pg';
+import {
+  PgResource,
+  type PgClient,
+  type PgCodec,
+  type WithPgClient,
+} from '@dataplan/pg';
 import type { PgTableResource } from '@graphile-contrib/pg-many-to-many';
 import {
   ExecutableStep,
@@ -11,7 +16,6 @@ import {
   setter,
   type SetterCapableStep,
 } from 'grafast';
-import { memo } from 'postgraphile/grafserv';
 
 type PgResourceAttributes<TResource extends PgTableResource> =
   keyof TResource['codec']['attributes'];
@@ -63,9 +67,17 @@ export class WithTypedResourcePgClientStep<
   /**
    * Names of the attributes to be selected
    */
+  private writeAttributes = new Map<
+    PgResourceAttributes<TResource>,
+    { name: string; depId: number; pgCodec: PgCodec }
+  >();
+
+  /**
+   * Names of the attributes to be selected
+   */
   private attributes = new Map<
     PgResourceAttributes<TResource>,
-    { name: string; depId: number | null; pgCodec: PgCodec }
+    { name: string; depId: null; pgCodec: PgCodec }
   >();
 
   constructor(
@@ -111,31 +123,21 @@ export class WithTypedResourcePgClientStep<
     const contexts = values[this.contextId] as ContextValues[];
     const datas = values[this.dataId] as TData[];
 
-    const addedValues = [...this.attributes.values()].reduce<
-      [PgResourceAttributes<TResource>, any][]
-    >((memo, { name, depId }) => {
-      if (!depId) {
-        return memo;
-      }
-      const val = values[depId];
-      if (Array.isArray(val)) {
-        return [...memo, [name, val[0]]];
-      }
-      return [...memo, [name, val]];
-    }, []);
-
-    const selections = {
-      attributes: [...this.attributes.keys()],
-      values: addedValues,
-    };
-
     return contexts.map(async ({ pgSettings, withPgClient }, i) => {
-      const data = datas[i];
-      if (!data) {
-        throw new Error('Data is undefined');
-      }
+      const data = datas[i] as TData;
+
+      const setValues = [...this.writeAttributes.values()]
+        .map(({ name, depId }) => {
+          const val = values[depId] && values[depId]?.[i];
+          return val ? [name, val] : null;
+        })
+        .filter((v): v is [string, any] => v !== null);
+
       return withPgClient(pgSettings, (client) =>
-        this.callback(client, data, selections),
+        this.callback(client, data, {
+          values: setValues,
+          attributes: [...this.attributes.keys()],
+        }),
       );
     });
   }
@@ -179,20 +181,21 @@ export class WithTypedResourcePgClientStep<
       );
     }
 
-    const exists = this.attributes.has(attr) ? this.attributes.get(attr) : null;
-
+    if (depId) {
+      this.writeAttributes.set(attr, {
+        name: attr.toString(),
+        depId,
+        pgCodec: codec,
+      });
+    } else {
+      this.attributes.set(attr, {
+        name: attr.toString(),
+        depId: null,
+        pgCodec: codec,
+      });
+    }
     // if we already have the attribute added, make sure
     // we aren't overwriting a depId related to a step
-    if (exists) {
-      if (!depId && exists.depId) {
-        return;
-      }
-    }
-    this.attributes.set(attr, {
-      name: attr.toString(),
-      depId: depId || null,
-      pgCodec: codec,
-    });
   }
 }
 
