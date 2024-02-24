@@ -4,12 +4,15 @@ import type {
   ObjectStep,
   __InputObjectStep,
 } from 'grafast';
-import { __InputListStep, constant } from 'grafast';
+import { __InputListStep } from 'grafast';
 import { isPgTableResource } from '../helpers';
 import { buildCreateField } from '../type-definitions/build-create-field';
 import { buildConnectByNodeIdField } from '../type-definitions/build-connect-by-node-id-field';
 import { buildUpdateByNodeIdField } from '../type-definitions/build-update-by-node-id-field';
 
+/**
+ * adds the relationship input field to the parent object
+ */
 export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
   name: 'PgNestedMutationTypesPlugin',
   description:
@@ -104,14 +107,12 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
         return build;
       },
 
-      init(init, build, context) {
+      init(init, build) {
         const {
           pgNestedMutationInputObjMap,
           pgNestedMutationRelationships,
           pgNestedMutationInputTypes,
-          graphql: { GraphQLNonNull, GraphQLList, GraphQLID },
           inflection,
-          EXPORTABLE,
         } = build;
 
         const resources = build.input.pgRegistry.pgResources;
@@ -285,7 +286,7 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
         const { EXPORTABLE } = build;
         const {
           fieldWithHooks,
-          scope: { isPgRowType, pgCodec, isPgUpdateInputType },
+          scope: { isPgRowType, pgCodec },
           Self,
         } = context;
 
@@ -321,7 +322,7 @@ export const PostGraphileNestedTypesPlugin: GraphileConfig.Plugin = {
                     autoApplyAfterParentApplyPlan: true,
                     applyPlan: EXPORTABLE(
                       () =>
-                        function plan($parent, args, info) {
+                        function plan($parent, args, _info) {
                           const $inputObj = args.getRaw() as __InputObjectStep;
                           if ($inputObj.evalHas('updateById')) {
                             args.apply($parent);

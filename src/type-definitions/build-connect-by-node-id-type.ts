@@ -6,7 +6,6 @@ export function buildConnectByNodeIdType(
 ): void {
   const {
     inflection,
-    EXPORTABLE,
     graphql: { GraphQLNonNull, GraphQLID },
   } = build;
 

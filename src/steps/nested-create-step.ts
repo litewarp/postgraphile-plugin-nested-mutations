@@ -14,7 +14,6 @@ export function nestedCreateStep(
     rightTable,
     args,
     async (client, data, { attributes, values: addedVals }) => {
-      console.log('nestedCreateStep', addedVals, attributes);
       const resourceSource = rightTable.from;
 
       if (!sql.isSQL(resourceSource)) {

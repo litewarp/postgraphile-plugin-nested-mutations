@@ -1,10 +1,7 @@
-import { constantCase, type GraphileBuild } from 'graphile-build';
-import { object, type __InputListStep, type __InputObjectStep } from 'grafast';
-import type { SQL } from 'postgraphile/pg-sql2';
-import type { PgCodec } from '@dataplan/pg';
+import { type GraphileBuild } from 'graphile-build';
+import { type __InputListStep, type __InputObjectStep } from 'grafast';
 import type { PgNestedMutationRelationship } from '../interfaces';
-import { inspect, isInsertOrUpdate } from '../helpers';
-import { withPgClientResource } from '../steps/with-pgclient-resource';
+import { isInsertOrUpdate } from '../helpers';
 import { nestedCreateStep } from '../steps/nested-create-step';
 
 export function buildCreateField(
@@ -12,7 +9,6 @@ export function buildCreateField(
   build: GraphileBuild.Build,
 ): Parameters<GraphileBuild.InputFieldWithHooksFunction> {
   const {
-    sql,
     EXPORTABLE,
     graphql: { GraphQLList, GraphQLNonNull },
   } = build;
@@ -52,7 +48,7 @@ export function buildCreateField(
           ? inputType
           : new GraphQLList(new GraphQLNonNull(inputType)),
       applyPlan: EXPORTABLE(
-        (isInsertOrUpdate, nestedCreateStep, relationName, relationship) =>
+        (isInsertOrUpdate, nestedCreateStep, relationship) =>
           function plan($parent, args, _info) {
             const {
               isReverse,
@@ -64,7 +60,6 @@ export function buildCreateField(
 
             if (isInsertOrUpdate($parent)) {
               if (!isReverse || isUnique) {
-                console.log(isReverse);
                 // if the left table contains the foreign keys
                 // the relation is unique so you can only input one
                 // create the new right table object and then update the left table
@@ -93,7 +88,6 @@ export function buildCreateField(
 
                   const $nestedObj = nestedCreateStep(rightTable, $item);
 
-                  console.log(relationName, localAttributes, remoteAttributes);
                   for (let i = 0; i < localAttributes.length; i++) {
                     const field = localAttributes[i];
                     const remote = remoteAttributes[i];
@@ -101,15 +95,12 @@ export function buildCreateField(
                       $nestedObj.set(remote, $parent.get(field));
                     }
                   }
-
-                  // add localAttributions to nested create
-                  // nestedCreate(relationship, $parent, $item);
                 }
               }
             }
           },
 
-        [isInsertOrUpdate, nestedCreateStep, relationName, relationship],
+        [isInsertOrUpdate, nestedCreateStep, relationship],
       ),
     },
   ];

@@ -1,5 +1,5 @@
 import type { __InputObjectStep } from 'grafast';
-import { __InputListStep, constant, node, specFromNodeId } from 'grafast';
+import { __InputListStep, specFromNodeId } from 'grafast';
 import { pgUpdateSingle } from '@dataplan/pg';
 import type { PgNestedMutationRelationship } from '../interfaces';
 import { isInsertOrUpdate } from '../helpers';
@@ -74,7 +74,7 @@ export function buildConnectByNodeIdField(
           rightTable,
           specFromNodeId,
         ) =>
-          function plan($parent, args, info) {
+          function plan($parent, args, _info) {
             if (isInsertOrUpdate($parent)) {
               if (isReverse) {
                 const $inputObj = args.getRaw() as
